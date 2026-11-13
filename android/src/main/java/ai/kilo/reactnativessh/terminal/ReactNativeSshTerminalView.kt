@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.Base64
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -34,6 +35,7 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private var appliedColumns = 0
   private var appliedRows = 0
   private var scaleAccumulator = 1f
+  private var loggedFirstWrite = false
 
   internal var cursorStyleValue: Int = TerminalEmulator.DEFAULT_TERMINAL_CURSOR_STYLE
 
@@ -50,6 +52,10 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private val transport = object : TerminalTransport {
     override fun write(data: ByteArray, offset: Int, count: Int) {
       val bytes = if (offset == 0 && count == data.size) data else data.copyOfRange(offset, offset + count)
+      if (!loggedFirstWrite) {
+        loggedFirstWrite = true
+        Log.i(LOG_TAG, "transport write $count bytes")
+      }
       source?.write(bytes)
     }
 
@@ -68,6 +74,9 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   init {
     terminal.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+    terminal.isFocusable = true
+    terminal.isFocusableInTouchMode = true
+    descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
     terminal.setTerminalViewClient(TerminalViewClientBridge(this))
     addView(terminal)
     terminal.setTextSize(fontSizePx)
@@ -80,6 +89,7 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
     super.onAttachedToWindow()
     TerminalSourceRegistry.addListener(sourceListener)
     rebindSource()
+    terminal.post { showKeyboard() }
   }
 
   override fun onDetachedFromWindow() {
@@ -269,6 +279,7 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private fun dpSize(dp: Double): Int = (dp * density()).roundToInt()
 
   private companion object {
+    const val LOG_TAG = "ReactNativeSshTerminal"
     const val TRANSCRIPT_ROWS = 10_000
     const val DEFAULT_FONT_SIZE_DP = 13.0
     const val MIN_FONT_SIZE_DP = 7.0
