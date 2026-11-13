@@ -304,6 +304,7 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
   private func installTerminal() {
     let view = SshTerminalView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
+    view.inputAccessoryView = nil
     view.getTerminal().changeHistorySize(transcriptRows)
     terminalView = view
 
