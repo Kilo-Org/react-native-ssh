@@ -42,7 +42,11 @@ export default function SshTerminalDemo() {
           'Unknown host key',
           `${request.algorithm}\n${request.fingerprintSha256}`,
           [
-            { text: 'Reject', style: 'cancel', onPress: () => answerHostKey(request.requestId, false) },
+            {
+              text: 'Reject',
+              style: 'cancel',
+              onPress: () => answerHostKey(request.requestId, false),
+            },
             { text: 'Accept', onPress: () => answerHostKey(request.requestId, true) },
           ],
           { cancelable: false }
@@ -117,12 +121,15 @@ export default function SshTerminalDemo() {
     if (sessionId) disconnect(sessionId).catch(() => undefined);
   }, []);
 
-  useEffect(() => () => {
-    const shellId = shellRef.current;
-    const sessionId = sessionRef.current;
-    if (shellId) closeShell(shellId);
-    if (sessionId) disconnect(sessionId).catch(() => undefined);
-  }, []);
+  useEffect(
+    () => () => {
+      const shellId = shellRef.current;
+      const sessionId = sessionRef.current;
+      if (shellId) closeShell(shellId);
+      if (sessionId) disconnect(sessionId).catch(() => undefined);
+    },
+    []
+  );
 
   return (
     <View style={styles.container}>

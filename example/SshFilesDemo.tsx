@@ -100,9 +100,7 @@ export default function SshFilesDemo() {
 
     try {
       const entries = await listDirectory(sftpId, REMOTE_DIR);
-      entries.forEach((entry) =>
-        append(`${entry.kind} ${entry.size} ${entry.name}`)
-      );
+      entries.forEach((entry) => append(`${entry.kind} ${entry.size} ${entry.name}`));
     } catch (cause) {
       setError(describe(cause));
     }

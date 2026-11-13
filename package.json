@@ -1,15 +1,29 @@
 {
   "name": "@kilocode/react-native-ssh",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "SSH client for React Native: Rust core with uniffi bindings",
   "main": "build/index.js",
   "types": "build/index.d.ts",
+  "files": [
+    "build",
+    "src",
+    "android/build.gradle",
+    "android/src/main",
+    "ios",
+    "expo-module.config.json",
+    "app.plugin.js",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
   "scripts": {
     "build": "node internal/module_scripts/build.js",
     "clean": "node internal/module_scripts/clean.js",
+    "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
     "lint": "eslint src/",
+    "prepack": "node internal/module_scripts/prepare.js",
     "test": "node internal/module_scripts/test.js",
-    "prepare": "node internal/module_scripts/prepare.js",
     "open:ios": "node internal/module_scripts/open-ios.js",
     "open:android": "node internal/module_scripts/open-android.js"
   },

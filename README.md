@@ -12,14 +12,14 @@ releases.
 
 ## Layout
 
-| Path | Contents |
-| --- | --- |
-| `rust/ssh-core` | The Rust library (`core_version`, `generate_ed25519_key`) |
-| `rust/uniffi-bindgen` | Bindings generator binary used by the build scripts |
-| `android/`, `ios/` | The Expo module and its native build files |
-| `src/` | TypeScript API |
-| `example/` | Expo app that prints the core version and a generated key |
-| `scripts/` | Native build scripts |
+| Path                  | Contents                                                  |
+| --------------------- | --------------------------------------------------------- |
+| `rust/ssh-core`       | The Rust library (`core_version`, `generate_ed25519_key`) |
+| `rust/uniffi-bindgen` | Bindings generator binary used by the build scripts       |
+| `android/`, `ios/`    | The Expo module and its native build files                |
+| `src/`                | TypeScript API                                            |
+| `example/`            | Expo app that prints the core version and a generated key |
+| `scripts/`            | Native build scripts                                      |
 
 ## Building
 
@@ -44,6 +44,29 @@ cd example && npm install
 npx expo prebuild --platform android
 npx expo run:android
 ```
+
+## Releasing
+
+The tarball ships the generated native artifacts, so a release is assembled from
+two builders rather than from a developer machine. `.github/workflows/release.yml`
+runs on a `v*` tag or by hand with a `dist-tag` input (default `next`):
+
+1. macOS runs `scripts/build-ios.sh` and uploads `ios/`.
+2. Linux runs `scripts/build-android.sh` and uploads the jniLibs and the Kotlin
+   bindings.
+3. One job downloads both into the checkout, runs `npm run build`, lists
+   `npm pack --dry-run`, asserts the xcframework slices, both `.so` files, the
+   Kotlin and Swift bindings and the compiled `build/` are present, then runs
+   `npm publish --provenance --access public --tag <tag>`.
+
+The publish job needs an `NPM_TOKEN` secret with write access to `@kilocode` and
+`id-token: write` for the provenance attestation. A tag must equal the
+`package.json` version with a `v` prefix; a tag containing a hyphen publishes
+under `next`, any other tag under `latest`.
+
+Packing by hand works too, but only after both scripts have run: the `files`
+allowlist ships whatever is in `android/src/main/jniLibs`, `ios/Frameworks` and
+`ios/Generated` at that moment, and none of them are committed.
 
 ## Terminal input
 
@@ -116,10 +139,10 @@ const backup = JSON.parse(await decryptExport(await readAsStringAsync(path), pas
 
 Rejections carry a `code`:
 
-| `code` | Cause |
-| --- | --- |
-| `WrongPassphrase` | The passphrase does not open the file. |
-| `InvalidExport` | The payload exceeds 16 MiB, the passphrase is shorter than 8 characters when encrypting, or the input is not an intact age file. |
+| `code`            | Cause                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `WrongPassphrase` | The passphrase does not open the file.                                                                                           |
+| `InvalidExport`   | The payload exceeds 16 MiB, the passphrase is shorter than 8 characters when encrypting, or the input is not an intact age file. |
 
 ## License
 

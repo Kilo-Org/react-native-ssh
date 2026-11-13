@@ -34,13 +34,8 @@ export function connect(options: ConnectOptions): Promise<string> {
  * reaches the target. Chaining bastions works the same way: each jump session
  * may itself have been opened through another one.
  */
-export function connectVia(
-  jumpSessionId: string,
-  options: ConnectOptions
-): Promise<string> {
-  return guard(() =>
-    ReactNativeSsh.connectVia(jumpSessionId, nativeConnectConfig(options))
-  );
+export function connectVia(jumpSessionId: string, options: ConnectOptions): Promise<string> {
+  return guard(() => ReactNativeSsh.connectVia(jumpSessionId, nativeConnectConfig(options)));
 }
 
 /** Runs one command against a fresh session channel. */
@@ -171,8 +166,7 @@ function nativeConnectConfig(options: ConnectOptions): NativeConnectConfig {
     username: options.username,
     auth: nativeAuth(options.auth),
     connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
-    keepaliveIntervalS:
-      options.keepaliveIntervalS ?? DEFAULT_KEEPALIVE_INTERVAL_S,
+    keepaliveIntervalS: options.keepaliveIntervalS ?? DEFAULT_KEEPALIVE_INTERVAL_S,
   };
 }
 
@@ -190,4 +184,3 @@ function nativeAuth(auth: ConnectOptions['auth']): NativeAuth {
       return { type: 'keyboardInteractive' };
   }
 }
-

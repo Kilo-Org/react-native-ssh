@@ -61,14 +61,8 @@ declare class ReactNativeSshModule extends NativeModule<SshEvents> {
   ): Promise<number>;
   cancelTransfer(transferId: string): void;
 
-  startLocalForward(
-    sessionId: string,
-    config: NativeForwardConfig
-  ): Promise<NativeForwardStart>;
-  startRemoteForward(
-    sessionId: string,
-    config: NativeForwardConfig
-  ): Promise<NativeForwardStart>;
+  startLocalForward(sessionId: string, config: NativeForwardConfig): Promise<NativeForwardStart>;
+  startRemoteForward(sessionId: string, config: NativeForwardConfig): Promise<NativeForwardStart>;
   stopForward(forwardId: string): Promise<void>;
 }
 
