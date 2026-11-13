@@ -11,8 +11,14 @@ name = "ssh_core"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+async-trait = "0.1"
 getrandom = { version = "0.4", features = ["sys_rng"] }
 # ring is the only russh crypto backend that cross-compiles to the Android NDK and
 # to iOS without a host CMake/Go toolchain, which aws-lc-rs requires.
-russh = { version = "0.65.1", default-features = false, features = ["ring"] }
+# rsa adds RSA host and user key support (PKCS#1 parsing lives in russh's key loader).
+russh = { version = "0.65.1", default-features = false, features = ["ring", "rsa"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
 uniffi = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
