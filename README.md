@@ -139,10 +139,10 @@ const backup = JSON.parse(await decryptExport(await readAsStringAsync(path), pas
 
 Rejections carry a `code`:
 
-| `code` | Cause |
-| --- | --- |
-| `WrongPassphrase` | The passphrase does not open the file. |
-| `InvalidExport` | The payload exceeds 16 MiB, the passphrase is shorter than 8 characters when encrypting, or the input is not an intact age file. |
+| `code`            | Cause                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `WrongPassphrase` | The passphrase does not open the file.                                                                                           |
+| `InvalidExport`   | The payload exceeds 16 MiB, the passphrase is shorter than 8 characters when encrypting, or the input is not an intact age file. |
 
 ## License
 

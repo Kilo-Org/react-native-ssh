@@ -9,10 +9,7 @@ import { guard } from './errors';
  * is shorter than 8 characters. The key derivation runs natively, off the
  * JavaScript thread.
  */
-export function encryptExport(
-  plaintextJson: string,
-  passphrase: string
-): Promise<string> {
+export function encryptExport(plaintextJson: string, passphrase: string): Promise<string> {
   return guard(() => ReactNativeSsh.encryptExport(plaintextJson, passphrase));
 }
 
@@ -23,9 +20,6 @@ export function encryptExport(
  * with `InvalidExport` when the input is not an age file, is damaged, or holds
  * more than 16 MiB.
  */
-export function decryptExport(
-  armored: string,
-  passphrase: string
-): Promise<string> {
+export function decryptExport(armored: string, passphrase: string): Promise<string> {
   return guard(() => ReactNativeSsh.decryptExport(armored, passphrase));
 }
