@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The runner image already ships the Android SDK; only add the packages
+      # this project resolves (Expo SDK 58: compileSdk 37, build-tools 37,
+      # NDK 27.1.12297006). android-actions/setup-android installs a `tools`
+      # package that no longer exists in the SDK repository.
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(ls -d "$sdk_root"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install \
+            "platform-tools" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "ndk;27.1.12297006"
+          {
+            echo "ANDROID_HOME=$sdk_root"
+            echo "ANDROID_SDK_ROOT=$sdk_root"
+            echo "ANDROID_NDK_HOME=$sdk_root/ndk/27.1.12297006"
+          } >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Build Rust core and Kotlin bindings
+        run: scripts/build-android.sh
+
+      - name: Verify the native artifacts
+        run: |
+          set -euo pipefail
+          test -f android/src/main/jniLibs/arm64-v8a/libssh_core.so
+          test -f android/src/main/jniLibs/x86_64/libssh_core.so
+          test -f android/src/main/java/ai/kilo/reactnativessh/uniffi/ssh_core.kt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install module dependencies
+        run: npm ci
+
+      - name: Install example dependencies
+        working-directory: example
+        run: npm ci
+
+      - name: Prebuild the example app
+        working-directory: example
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Assemble the example app
+        working-directory: example/android
+        run: ./gradlew assembleDebug
+
+  ios:
+    name: iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build Rust core and the xcframework
+        run: scripts/build-ios.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install module dependencies
+        run: npm ci
+
+      - name: Install example dependencies
+        working-directory: example
+        run: npm ci
+
+      - name: Prebuild the example app
+        working-directory: example
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Install pods
+        working-directory: example/ios
+        run: pod install
+
+      # Guards the vendored xcframework: an exclude_files pattern that matches
+      # Frameworks/ makes CocoaPods drop the bundle, after which the app link
+      # fails on the uniffi symbols instead of here.
+      - name: Verify the xcframework is vendored
+        working-directory: example/ios
+        run: |
+          set -euo pipefail
+          support="Pods/Target Support Files/ReactNativeSsh"
+          test -f "$support/ReactNativeSsh-xcframeworks.sh"
+          grep -q 'ios-arm64_x86_64-simulator' "$support/ReactNativeSsh-xcframeworks.sh"
+          grep -q -- '-l"ssh_core"' "Pods/Target Support Files/"Pods-*/Pods-*.debug.xcconfig
+
+      - name: Build the example app for the simulator
+        working-directory: example/ios
+        run: |
+          xcodebuild \
+            -workspace ReactNativeSshExample.xcworkspace \
+            -scheme ReactNativeSshExample \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
