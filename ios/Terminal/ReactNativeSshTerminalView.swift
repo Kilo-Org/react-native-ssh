@@ -246,8 +246,9 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
   }
 
   private func write(_ bytes: Data) {
+    // A closed transport stays closed until a new source is bound: later writes
+    // are dropped here, because the close notice and event already went out.
     if transportClosed {
-      closeTransport(exitStatus: nil, error: "terminal source is closed")
       return
     }
     guard let source else {
@@ -258,10 +259,11 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
   }
 
   private func closeTransport(exitStatus: Int?, error: String?) {
-    if !transportClosed {
-      transportClosed = true
-      feedCloseNotice(exitStatus: exitStatus, error: error)
+    guard !transportClosed else {
+      return
     }
+    transportClosed = true
+    feedCloseNotice(exitStatus: exitStatus, error: error)
     let errorValue: Any = error.map { $0 as Any } ?? NSNull()
     onClosed(["exitStatus": exitStatus ?? 0, "error": errorValue])
   }
