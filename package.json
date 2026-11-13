@@ -22,8 +22,8 @@
     "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
     "lint": "eslint src/",
+    "prepack": "node internal/module_scripts/prepare.js",
     "test": "node internal/module_scripts/test.js",
-    "prepare": "node internal/module_scripts/prepare.js",
     "open:ios": "node internal/module_scripts/open-ios.js",
     "open:android": "node internal/module_scripts/open-android.js"
   },

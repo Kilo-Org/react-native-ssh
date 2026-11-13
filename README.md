@@ -45,6 +45,29 @@ npx expo prebuild --platform android
 npx expo run:android
 ```
 
+## Releasing
+
+The tarball ships the generated native artifacts, so a release is assembled from
+two builders rather than from a developer machine. `.github/workflows/release.yml`
+runs on a `v*` tag or by hand with a `dist-tag` input (default `next`):
+
+1. macOS runs `scripts/build-ios.sh` and uploads `ios/`.
+2. Linux runs `scripts/build-android.sh` and uploads the jniLibs and the Kotlin
+   bindings.
+3. One job downloads both into the checkout, runs `npm run build`, lists
+   `npm pack --dry-run`, asserts the xcframework slices, both `.so` files, the
+   Kotlin and Swift bindings and the compiled `build/` are present, then runs
+   `npm publish --provenance --access public --tag <tag>`.
+
+The publish job needs an `NPM_TOKEN` secret with write access to `@kilocode` and
+`id-token: write` for the provenance attestation. A tag must equal the
+`package.json` version with a `v` prefix; a tag containing a hyphen publishes
+under `next`, any other tag under `latest`.
+
+Packing by hand works too, but only after both scripts have run: the `files`
+allowlist ships whatever is in `android/src/main/jniLibs`, `ios/Frameworks` and
+`ios/Generated` at that moment, and none of them are committed.
+
 ## Terminal input
 
 Shell input and resize requests share one ordered queue. Shutdown stops accepting

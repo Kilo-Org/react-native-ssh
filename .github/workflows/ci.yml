@@ -160,6 +160,9 @@ jobs:
       - name: Install module dependencies
         run: npm ci
 
+      - name: Build the module
+        run: npm run build
+
       - name: Install example dependencies
         working-directory: example
         run: npm ci
@@ -194,6 +197,9 @@ jobs:
 
       - name: Install module dependencies
         run: npm ci
+
+      - name: Build the module
+        run: npm run build
 
       - name: Install example dependencies
         working-directory: example
