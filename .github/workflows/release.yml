@@ -1,0 +1,209 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist-tag:
+        description: npm dist-tag to publish under
+        required: true
+        type: string
+        default: next
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    name: iOS xcframework
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install the Rust targets
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          workspaces: rust
+
+      - name: Build the xcframework and the Swift bindings
+        run: scripts/build-ios.sh
+
+      - name: Upload the iOS artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ios
+          path: ios
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android jniLibs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install the JDK
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install the Android SDK packages
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(ls -d "$sdk_root"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install \
+            "platform-tools" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "ndk;27.1.12297006"
+          {
+            echo "ANDROID_HOME=$sdk_root"
+            echo "ANDROID_SDK_ROOT=$sdk_root"
+            echo "ANDROID_NDK_HOME=$sdk_root/ndk/27.1.12297006"
+          } >> "$GITHUB_ENV"
+
+      - name: Install the Rust targets
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          workspaces: rust
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Build the jniLibs and the Kotlin bindings
+        run: scripts/build-android.sh
+
+      - name: Upload the jniLibs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-jniLibs
+          path: android/src/main/jniLibs
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the Kotlin bindings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-bindings
+          path: android/src/main/java/ai/kilo/reactnativessh/uniffi
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    needs: [ios, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install Node with the npm registry
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download the iOS artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: ios
+          path: ios
+
+      - name: Download the jniLibs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: android-jniLibs
+          path: android/src/main/jniLibs
+
+      - name: Download the Kotlin bindings
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: android-bindings
+          path: android/src/main/java/ai/kilo/reactnativessh/uniffi
+
+      - name: Install the dependencies
+        run: npm ci
+
+      - name: Build the TypeScript
+        run: npm run build
+
+      - name: Verify the artifacts the package ships
+        run: |
+          set -euo pipefail
+          xcframework=ios/Frameworks/SshCore.xcframework
+          test -f "$xcframework/Info.plist"
+          test -f "$xcframework/ios-arm64/libssh_core.a"
+          test -f "$xcframework/ios-arm64_x86_64-simulator/libssh_core.a"
+          test -f ios/Generated/SshCore.swift
+          test -f android/src/main/jniLibs/arm64-v8a/libssh_core.so
+          test -f android/src/main/jniLibs/x86_64/libssh_core.so
+          test -f android/src/main/java/ai/kilo/reactnativessh/uniffi/ssh_core.kt
+          test -f build/index.js
+          test -f build/index.d.ts
+
+      - name: Resolve the dist-tag
+        id: dist
+        env:
+          INPUT_TAG: ${{ inputs.dist-tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+          elif [[ "$REF_NAME" == *-* ]]; then
+            tag=next
+          else
+            tag=latest
+          fi
+          if ! [[ "$tag" =~ ^[a-z][a-z0-9._-]*$ ]]; then
+            echo "Not a usable dist-tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check the tag against the package version
+        if: github.event_name == 'push'
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./package.json").version')"
+          if [ "v$version" != "$REF_NAME" ]; then
+            echo "Tag $REF_NAME does not match the package version $version" >&2
+            exit 1
+          fi
+
+      - name: List the tarball contents
+        run: npm pack --dry-run 2>&1 | tee pack-dry-run.log
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public --tag "${{ steps.dist.outputs.tag }}"
