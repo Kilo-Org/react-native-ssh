@@ -57,7 +57,10 @@ impl ShellChannel {
     }
 
     fn send(&self, command: Command) -> Result<(), SshError> {
-        let mut commands = self.commands.lock().unwrap_or_else(|error| error.into_inner());
+        let mut commands = self
+            .commands
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         if *self.state.closed.borrow() {
             return Err(channel_closed());
         }
@@ -185,4 +188,3 @@ async fn read_loop(mut reader: ChannelReadHalf, state: Arc<ShellState>) {
 
     state.finish(exit_status, None);
 }
-
