@@ -12,7 +12,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUST_DIR="$ROOT/rust"
 MANIFEST="$RUST_DIR/Cargo.toml"
 BINDGEN_MANIFEST="$RUST_DIR/uniffi-bindgen/Cargo.toml"
-UNIFFI_CONFIG="$RUST_DIR/ssh-core/uniffi.toml"
+UNIFFI_CONFIG="$RUST_DIR/uniffi-bindgen.toml"
 JNI_DIR="$ROOT/android/src/main/jniLibs"
 KOTLIN_SRC_DIR="$ROOT/android/src/main/java"
 KOTLIN_PACKAGE_DIR="$KOTLIN_SRC_DIR/ai/kilo/reactnativessh/uniffi"
@@ -56,13 +56,16 @@ echo "==> Using NDK $ANDROID_NDK_HOME"
 
 echo "==> Building libssh_core.so for arm64-v8a and x86_64"
 rm -rf "$JNI_DIR"
-cargo ndk \
-  --manifest-path "$MANIFEST" \
-  --target arm64-v8a \
-  --target x86_64 \
-  --platform "$ANDROID_API" \
-  --output-dir "$JNI_DIR" \
-  build --package ssh-core --release
+# cargo-ndk reads Cargo.toml from the working directory before it applies flags.
+(
+  cd "$RUST_DIR"
+  cargo ndk \
+    --target arm64-v8a \
+    --target x86_64 \
+    --platform "$ANDROID_API" \
+    --output-dir "$JNI_DIR" \
+    build --package ssh-core --release
+)
 
 echo "==> Building a host library for the bindings generator"
 cargo build --manifest-path "$MANIFEST" --package ssh-core --release
