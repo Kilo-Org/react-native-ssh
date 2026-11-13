@@ -12,11 +12,11 @@ public final class FeedSource: SharedObject, TerminalByteSource {
   }
 
   public func write(_ bytes: Data) {
-    emit(event: "onInput", arguments: bytes)
+    emit(event: "onInput", payload: bytes)
   }
 
   public func resize(cols: Int, rows: Int) {
-    emit(event: "onResize", arguments: ["cols": cols, "rows": rows])
+    emit(event: "onResize", payload: ["cols": cols, "rows": rows])
   }
 
   public func setSink(_ sink: TerminalSink?) {
