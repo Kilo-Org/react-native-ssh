@@ -45,10 +45,11 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
     override fun onClosed(exitStatus: Int?, error: String?) {
       mainHandler.post {
-        if (!transportClosed) {
-          transportClosed = true
-          session.notifyTransportClosed(exitStatus ?: 0, error)
-        }
+        // One transport closes once: the notice and the event are skipped for
+        // every later close report, and a rebound source starts a new cycle.
+        if (transportClosed) return@post
+        transportClosed = true
+        session.notifyTransportClosed(exitStatus ?: 0, error)
         TerminalViewEvents.emit(this@ReactNativeSshTerminalView, "onClosed", Bundle().apply {
           putInt("exitStatus", exitStatus ?: 0)
           putString("error", error)
@@ -59,10 +60,9 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   private val transport = object : TerminalTransport {
     override fun write(data: ByteArray, offset: Int, count: Int) {
-      if (transportClosed) {
-        sink.onClosed(null, "terminal source is closed")
-        return
-      }
+      // A closed transport stays closed until a new source is bound: later writes
+      // are dropped here, because the close notice and event already went out.
+      if (transportClosed) return
       val target = source
       if (target == null) {
         sink.onClosed(null, "terminal source '${sourceId.orEmpty()}' is not bound")
