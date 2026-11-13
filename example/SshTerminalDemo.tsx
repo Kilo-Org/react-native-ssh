@@ -8,6 +8,7 @@ import {
   TerminalView,
   type ConnectOptions,
   type TerminalSize,
+  type TerminalViewHandle,
 } from '@kilocode/react-native-ssh';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,6 +30,7 @@ export default function SshTerminalDemo() {
 
   const sessionRef = useRef<string | null>(null);
   const shellRef = useRef<string | null>(null);
+  const terminalRef = useRef<TerminalViewHandle>(null);
 
   useEffect(
     () =>
@@ -105,6 +107,7 @@ export default function SshTerminalDemo() {
 
       {sourceId ? (
         <TerminalView
+          ref={terminalRef}
           style={styles.terminal}
           sourceId={sourceId}
           fontFamily="JetBrainsMono-Regular"
@@ -135,6 +138,22 @@ export default function SshTerminalDemo() {
         </Pressable>
         <Pressable accessibilityRole="button" onPress={close} style={styles.action}>
           <Text style={styles.actionLabel}>Close</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            terminalRef.current?.copySelection();
+          }}
+          style={styles.action}>
+          <Text style={styles.actionLabel}>Copy</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            terminalRef.current?.pasteFromClipboard();
+          }}
+          style={styles.action}>
+          <Text style={styles.actionLabel}>Paste</Text>
         </Pressable>
       </View>
     </View>

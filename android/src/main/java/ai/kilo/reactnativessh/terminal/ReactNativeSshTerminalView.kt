@@ -35,7 +35,6 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private var appliedColumns = 0
   private var appliedRows = 0
   private var scaleAccumulator = 1f
-  private var loggedFirstWrite = false
 
   internal var cursorStyleValue: Int = TerminalEmulator.DEFAULT_TERMINAL_CURSOR_STYLE
 
@@ -52,10 +51,6 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private val transport = object : TerminalTransport {
     override fun write(data: ByteArray, offset: Int, count: Int) {
       val bytes = if (offset == 0 && count == data.size) data else data.copyOfRange(offset, offset + count)
-      if (!loggedFirstWrite) {
-        loggedFirstWrite = true
-        Log.i(LOG_TAG, "transport write $count bytes")
-      }
       source?.write(bytes)
     }
 

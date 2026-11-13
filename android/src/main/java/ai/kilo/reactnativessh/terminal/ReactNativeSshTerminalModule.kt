@@ -66,6 +66,10 @@ class ReactNativeSshTerminalModule : Module() {
         view.sendText(text)
       }
 
+      AsyncFunction("pasteFromClipboard") { view: ReactNativeSshTerminalView ->
+        view.pasteFromClipboard()
+      }
+
       AsyncFunction("copySelection") { view: ReactNativeSshTerminalView ->
         view.copySelection()
       }

@@ -27,6 +27,7 @@ export type TerminalViewHandle = {
   sendInput(base64: string): Promise<void>;
   copySelection(): Promise<void>;
   paste(text: string): Promise<void>;
+  pasteFromClipboard(): Promise<void>;
   scrollToBottom(): Promise<void>;
 };
 
