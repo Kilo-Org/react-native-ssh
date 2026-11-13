@@ -39,7 +39,7 @@ done
 
 echo "==> Fusing the simulator slices"
 mkdir -p "$LIPO_DIR" "$GENERATED_DIR" "$FRAMEWORKS_DIR"
-SIM_LIPO="$LIPO_DIR/libssh_core_simulator.a"
+SIM_LIPO="$LIPO_DIR/libssh_core.a"
 lipo -create \
   "$RUST_DIR/target/aarch64-apple-ios-sim/release/libssh_core.a" \
   "$RUST_DIR/target/x86_64-apple-ios/release/libssh_core.a" \
