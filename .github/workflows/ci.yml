@@ -203,4 +203,12 @@ jobs:
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build \
             build
+
+      - name: Upload the simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-ios-simulator-app
+          path: example/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeSshExample.app
+          retention-days: 7
