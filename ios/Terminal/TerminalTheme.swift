@@ -15,7 +15,7 @@ struct TerminalTheme {
   let background: UIColor
   let cursor: UIColor
   let selection: UIColor
-  let ansi: [Color]
+  let ansi: [SwiftTerm.Color]
 
   static let `default` = TerminalTheme(
     foreground: 0xFFD8DEE9,
@@ -35,7 +35,7 @@ struct TerminalTheme {
     self.background = UIColor(argb: background)
     self.cursor = UIColor(argb: cursor)
     self.selection = UIColor(argb: selection)
-    self.ansi = ansi.prefix(16).map { Color(argb: $0) }
+    self.ansi = ansi.prefix(16).map { SwiftTerm.Color(argb: $0) }
   }
 
   init(record: TerminalThemeRecord) {
@@ -70,7 +70,7 @@ private extension UIColor {
   }
 }
 
-private extension Color {
+private extension SwiftTerm.Color {
   convenience init(argb: Int) {
     let value = UInt32(truncatingIfNeeded: argb)
     self.init(

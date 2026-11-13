@@ -141,14 +141,14 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
     terminalView.scroll(toPosition: 1.0)
   }
 
-  func onData(_ bytes: Data) {
+  public func onData(_ bytes: Data) {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       self.terminalView.feed(byteArray: bytes[...])
     }
   }
 
-  func onClosed(exitStatus: Int?, error: String?) {
+  public func onClosed(exitStatus: Int?, error: String?) {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       var description = "\r\n[Connection closed"
