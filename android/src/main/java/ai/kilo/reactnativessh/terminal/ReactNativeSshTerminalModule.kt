@@ -20,6 +20,8 @@ class ReactNativeSshTerminalModule : Module() {
     }
 
     Class(FeedSource::class) {
+      Constructor { FeedSource(appContext) }
+
       Events("onInput", "onResize")
 
       Property("sourceId").get { source -> source.id }

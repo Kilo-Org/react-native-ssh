@@ -39,7 +39,7 @@ internal class SshShellSource private constructor(
 
   fun close() {
     try {
-      channel.close()
+      channel.shutdown()
     } catch (_: SshException.ChannelClosed) {
       // Already closed by the server.
     }

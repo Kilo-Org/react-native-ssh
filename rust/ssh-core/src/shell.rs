@@ -68,7 +68,9 @@ impl ShellChannel {
         self.send(Command::Resize { cols, rows })
     }
 
-    pub fn close(&self) -> Result<(), SshError> {
+    /// Closes the channel. Named `shutdown` because `close` collides with the
+    /// `AutoCloseable.close` that uniffi generates for every exported object.
+    pub fn shutdown(&self) -> Result<(), SshError> {
         self.send(Command::Close)
     }
 

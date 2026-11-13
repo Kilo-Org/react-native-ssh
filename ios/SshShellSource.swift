@@ -46,7 +46,7 @@ final class SshShellSource: TerminalByteSource, @unchecked Sendable {
   }
 
   func close() {
-    try? channel.close()
+    try? channel.shutdown()
   }
 }
 
