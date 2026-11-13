@@ -33,6 +33,8 @@ pub enum SshError {
     KeyParse { message: String },
     /// A passphrase is required, or does not decrypt the key.
     WrongPassphrase,
+    /// An export is not a valid age file, or cannot be produced from its inputs.
+    InvalidExport { message: String },
     /// The channel is closed: end of stream, server close, or session loss.
     ChannelClosed { message: String },
     /// The peer broke the protocol or the session ended unexpectedly.
@@ -68,6 +70,7 @@ impl SshError {
             Self::UnsupportedAlgorithm { .. } => "UnsupportedAlgorithm",
             Self::KeyParse { .. } => "KeyParse",
             Self::WrongPassphrase => "WrongPassphrase",
+            Self::InvalidExport { .. } => "InvalidExport",
             Self::ChannelClosed { .. } => "ChannelClosed",
             Self::Protocol { .. } => "Protocol",
             Self::KeyGeneration { .. } => "KeyGeneration",
@@ -113,6 +116,7 @@ impl fmt::Display for SshError {
             }
             Self::KeyParse { message } => write!(f, "key parse error: {message}"),
             Self::WrongPassphrase => write!(f, "wrong or missing passphrase"),
+            Self::InvalidExport { message } => write!(f, "invalid export: {message}"),
             Self::ChannelClosed { message } => write!(f, "channel closed: {message}"),
             Self::Protocol { message } => write!(f, "protocol error: {message}"),
             Self::KeyGeneration { message } => write!(f, "key generation failed: {message}"),
@@ -286,6 +290,9 @@ mod tests {
                 message: "garbage".into(),
             },
             SshError::WrongPassphrase,
+            SshError::InvalidExport {
+                message: "not an age file".into(),
+            },
             SshError::ChannelClosed {
                 message: "eof".into(),
             },
@@ -339,6 +346,7 @@ mod tests {
                 "UnsupportedAlgorithm",
                 "KeyParse",
                 "WrongPassphrase",
+                "InvalidExport",
                 "ChannelClosed",
                 "Protocol",
                 "KeyGeneration",

@@ -16,6 +16,7 @@ export {
   openShell,
   parsePrivateKey,
 } from './ssh';
+export { decryptExport, encryptExport } from './export';
 export { startLocalForward, startRemoteForward } from './forward';
 export {
   closeSftp,

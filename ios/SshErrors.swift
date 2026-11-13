@@ -25,6 +25,8 @@ extension SshError {
       return "KeyParse"
     case .WrongPassphrase:
       return "WrongPassphrase"
+    case .InvalidExport:
+      return "InvalidExport"
     case .ChannelClosed:
       return "ChannelClosed"
     case .Protocol:
@@ -51,6 +53,7 @@ extension SshError {
       .AuthFailed(let message),
       .UnsupportedAlgorithm(let message),
       .KeyParse(let message),
+      .InvalidExport(let message),
       .ChannelClosed(let message),
       .Protocol(let message),
       .KeyGeneration(let message),

@@ -99,6 +99,28 @@ manifest can call the config plugin instead, which adds the same entries:
 }
 ```
 
+## Encrypted export
+
+`encryptExport` turns an app-defined JSON payload into an
+[age](https://age-encryption.org) file encrypted to a passphrase, so a backup can
+be moved between devices by any means. `decryptExport` opens files that this
+library or `age -p -a` produced. Both run the scrypt key derivation in the Rust
+core on a native worker, off the JavaScript thread.
+
+```ts
+const file = await encryptExport(JSON.stringify(backup), passphrase);
+await FileSystem.writeAsStringAsync(path, file);
+
+const backup = JSON.parse(await decryptExport(await readAsStringAsync(path), passphrase));
+```
+
+Rejections carry a `code`:
+
+| `code` | Cause |
+| --- | --- |
+| `WrongPassphrase` | The passphrase does not open the file. |
+| `InvalidExport` | The payload exceeds 16 MiB, the passphrase is shorter than 8 characters when encrypting, or the input is not an intact age file. |
+
 ## License
 
 Apache-2.0. See [LICENSE](./LICENSE).

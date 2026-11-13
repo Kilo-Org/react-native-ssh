@@ -23,6 +23,7 @@ export const SSH_ERROR_CODES = [
   'UnsupportedAlgorithm',
   'KeyParse',
   'WrongPassphrase',
+  'InvalidExport',
   'ChannelClosed',
   'Protocol',
   'KeyGeneration',
