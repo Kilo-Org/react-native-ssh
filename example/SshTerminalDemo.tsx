@@ -2,8 +2,10 @@ import {
   addSshListener,
   answerHostKey,
   closeShell,
+  configureBackgroundSessions,
   connect,
   disconnect,
+  notifyWhenIdle,
   openShell,
   TerminalView,
   type ConnectOptions,
@@ -55,6 +57,35 @@ export default function SshTerminalDemo() {
         console.log('[ssh-terminal] disconnect', notice.reason);
         setStatus(`disconnected: ${notice.reason}`);
         setSourceId(null);
+      }).remove,
+    []
+  );
+
+  useEffect(() => {
+    configureBackgroundSessions({
+      channelName: 'SSH sessions',
+      title: 'SSH session active',
+      body: (count) => (count === 1 ? '1 session open' : `${count} sessions open`),
+      disconnectAllLabel: 'Disconnect all',
+    });
+  }, []);
+
+  useEffect(
+    () =>
+      addSshListener('onCommandFinished', (notice) => {
+        console.log('[ssh-terminal] command finished', notice.shellId);
+        setStatus(`command finished in ${notice.shellId}`);
+      }).remove,
+    []
+  );
+
+  useEffect(
+    () =>
+      addSshListener('onDisconnectAll', () => {
+        shellRef.current = null;
+        sessionRef.current = null;
+        setSourceId(null);
+        setStatus('disconnected all');
       }).remove,
     []
   );
@@ -137,6 +168,24 @@ export default function SshTerminalDemo() {
       )}
 
       <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            const shellId = shellRef.current;
+            if (shellId) {
+              const armed = notifyWhenIdle(shellId, 5000, {
+                title: 'Command finished',
+                body: 'Tap to return to the shell',
+              });
+              console.log('[ssh-terminal] notify when idle', shellId, armed);
+            }
+          }}
+          style={styles.action}>
+          <Text style={styles.actionLabel}>Notify when idle</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.actions}>
         <Pressable accessibilityRole="button" onPress={open} style={styles.action}>
           <Text style={styles.actionLabel}>Connect</Text>
         </Pressable>
@@ -171,6 +220,12 @@ const styles = StyleSheet.create({
   status: { color: '#5a6472', fontSize: 11 },
   terminal: { flex: 1 },
   actions: { flexDirection: 'row', gap: 8, padding: 10, backgroundColor: '#1b2027' },
-  action: { flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: '#2a323d', borderRadius: 6 },
+  action: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#2a323d',
+    borderRadius: 6,
+  },
   actionLabel: { color: '#d8dee9', fontSize: 12 },
 });

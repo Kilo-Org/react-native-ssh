@@ -58,6 +58,25 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
     unsupported();
   }
 
+  configureBackgroundSessions(
+    _channelName: string,
+    _title: string,
+    _disconnectAllLabel: string
+  ): number {
+    return 0;
+  }
+
+  updateSessionsBody(_body: string): void {}
+
+  notifyWhenIdle(
+    _shellId: string,
+    _quietMs: number,
+    _title: string,
+    _body: string | null
+  ): boolean {
+    return false;
+  }
+
   answerHostKey(_requestId: string, _accept: boolean): boolean {
     return unsupported();
   }

@@ -9,6 +9,9 @@ public final class ReactNativeSshModule: Module {
       "onHostKey",
       "onKeyboardInteractive",
       "onDisconnect",
+      "onSessionsChanged",
+      "onCommandFinished",
+      "onDisconnectAll",
       "onTransferProgress",
       "onForwardError"
     )
@@ -60,6 +63,16 @@ public final class ReactNativeSshModule: Module {
 
     Function("closeShell") { (shellId: String) in
       self.closeShell(shellId)
+    }
+
+    Function("configureBackgroundSessions") { (_: String, _: String, _: String) -> Int in
+      0
+    }
+
+    Function("updateSessionsBody") { (_: String) -> Void in }
+
+    Function("notifyWhenIdle") { (_: String, _: Double, _: String, _: String?) -> Bool in
+      false
     }
 
     Function("answerHostKey") { (requestId: String, accept: Bool) -> Bool in

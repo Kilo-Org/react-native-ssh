@@ -1,8 +1,10 @@
 import type { EventSubscription } from 'expo';
 
 import type {
+  BackgroundSessionTexts,
   ConnectOptions,
   ExecOutput,
+  IdleNotificationTexts,
   NativeAuth,
   NativeConnectConfig,
   ParsedKey,
@@ -75,6 +77,48 @@ export function closeShell(shellId: string): void {
   ReactNativeSsh.closeShell(shellId);
 }
 
+let sessionTexts: BackgroundSessionTexts | null = null;
+let sessionsListener: EventSubscription | null = null;
+
+/**
+ * Sets the texts of the notification that stays up while sessions are open, and
+ * keeps its body in sync with the open-session count. Android runs a foreground
+ * service for as long as a session is open; iOS has no background keepalive, so
+ * this only stores the texts there.
+ */
+export function configureBackgroundSessions(texts: BackgroundSessionTexts): void {
+  sessionTexts = texts;
+
+  const count = ReactNativeSsh.configureBackgroundSessions(
+    texts.channelName,
+    texts.title,
+    texts.disconnectAllLabel
+  );
+
+  ReactNativeSsh.updateSessionsBody(texts.body(count));
+
+  sessionsListener ??= ReactNativeSsh.addListener('onSessionsChanged', (notice) => {
+    if (sessionTexts) {
+      ReactNativeSsh.updateSessionsBody(sessionTexts.body(notice.count));
+    }
+  });
+}
+
+/**
+ * Arms a one-shot "command finished" signal on a shell: once its output has been
+ * silent for `quietMs`, a notification is posted and `onCommandFinished` fires.
+ * It stays silent when the app is on screen or the shell closes first, and
+ * returns `false` when the shell is not open. iOS resolves the same way without
+ * posting anything.
+ */
+export function notifyWhenIdle(
+  shellId: string,
+  quietMs: number,
+  texts: IdleNotificationTexts
+): boolean {
+  return ReactNativeSsh.notifyWhenIdle(shellId, quietMs, texts.title, texts.body ?? null);
+}
+
 /** Reads an OpenSSH or PEM private key without contacting a server. */
 export function parsePrivateKey(pem: string, passphrase?: string): ParsedKey {
   try {
@@ -104,13 +148,17 @@ export function addSshListener<K extends keyof SshEvents>(
 export { isRetryableError, SshError };
 
 export type {
+  BackgroundSessionTexts,
+  CommandFinishedNotice,
   ConnectOptions,
   DisconnectNotice,
   ExecOutput,
   HostKeyRequest,
+  IdleNotificationTexts,
   KeyboardInteractivePrompt,
   KeyboardInteractiveRequest,
   ParsedKey,
+  SessionsChangedNotice,
   ShellOptions,
   SshErrorCode,
   SshEvents,

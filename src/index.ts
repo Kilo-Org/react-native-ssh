@@ -7,10 +7,12 @@ export {
   answerHostKey,
   answerPrompts,
   closeShell,
+  configureBackgroundSessions,
   connect,
   connectVia,
   disconnect,
   exec,
+  notifyWhenIdle,
   openShell,
   parsePrivateKey,
 } from './ssh';
@@ -30,15 +32,19 @@ export {
 } from './sftp';
 export type { Forward, ForwardConfig } from './forward';
 export type {
+  BackgroundSessionTexts,
+  CommandFinishedNotice,
   ConnectOptions,
   DisconnectNotice,
   EntryKind,
   ExecOutput,
   ForwardErrorNotice,
   HostKeyRequest,
+  IdleNotificationTexts,
   KeyboardInteractivePrompt,
   KeyboardInteractiveRequest,
   ParsedKey,
+  SessionsChangedNotice,
   SftpEntry,
   ShellOptions,
   SshAuth,

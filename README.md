@@ -56,6 +56,48 @@ The SSH integration tests run only when `SSH_TEST_HOST` is set. The
 `shell_preserves_rapid_single_byte_writes` test sends 16,384 individual writes,
 interleaves resizes, and compares the remote file byte for byte.
 
+## Background sessions
+
+Android runs a `specialUse` foreground service while at least one session is
+open, so the sockets and the React Native runtime survive the app leaving the
+screen. Its notification carries a `Disconnect all` action. Give it localised
+texts once at startup and the body follows the open-session count:
+
+```ts
+configureBackgroundSessions({
+  channelName: t('ssh.notification.channel'),
+  title: t('ssh.notification.title'),
+  body: (count) => t('ssh.notification.body', { count }),
+  disconnectAllLabel: t('ssh.notification.disconnectAll'),
+});
+```
+
+`addSshListener('onSessionsChanged', ...)` reports the count, and
+`addSshListener('onDisconnectAll', ...)` reports the notification action, which
+ends every session natively.
+
+To be told when a command finishes while the app is off screen, arm a shell
+before sending it:
+
+```ts
+notifyWhenIdle(shellId, 5000, { title: t('ssh.commandFinished') });
+addSshListener('onCommandFinished', ({ shellId }) => refresh(shellId));
+```
+
+The watch is one-shot. It fires when the shell's output has been silent for
+`quietMs`, stays silent while the app is on screen, and drops itself when the
+shell closes. iOS has no background keepalive, so both calls only resolve there;
+the app reconnects when it returns to the foreground.
+
+The service is declared by the library manifest. Apps that manage their own
+manifest can call the config plugin instead, which adds the same entries:
+
+```json
+{
+  "plugins": [["@kilocode/react-native-ssh", { "backgroundSessions": true }]]
+}
+```
+
 ## License
 
 Apache-2.0. See [LICENSE](./LICENSE).
