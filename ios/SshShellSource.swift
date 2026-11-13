@@ -35,7 +35,7 @@ final class SshShellSource: TerminalByteSource, @unchecked Sendable {
     do {
       try channel.write(bytes: bytes)
     } catch {
-      delivery.onClosed(exitStatus: nil, error: String(describing: error))
+      delivery.onClosed(exitStatus: nil, error: message(for: error))
     }
   }
 
@@ -43,7 +43,7 @@ final class SshShellSource: TerminalByteSource, @unchecked Sendable {
     do {
       try channel.resize(cols: UInt32(cols), rows: UInt32(rows))
     } catch {
-      delivery.onClosed(exitStatus: nil, error: String(describing: error))
+      delivery.onClosed(exitStatus: nil, error: message(for: error))
     }
   }
 
@@ -53,6 +53,13 @@ final class SshShellSource: TerminalByteSource, @unchecked Sendable {
 
   func close() {
     try? channel.shutdown()
+  }
+
+  private func message(for error: Error) -> String {
+    guard let sshError = error as? SshError else {
+      return String(describing: error)
+    }
+    return sshError.detail
   }
 }
 

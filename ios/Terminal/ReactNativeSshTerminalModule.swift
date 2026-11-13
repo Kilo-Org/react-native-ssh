@@ -23,7 +23,15 @@ public class ReactNativeSshTerminalModule: Module {
     }
 
     View(ReactNativeSshTerminalView.self) {
-      Events("onResize", "onLinkPress", "onBell", "onTitleChange", "onSelectionChange", "onFontSizeChange")
+      Events(
+        "onResize",
+        "onLinkPress",
+        "onBell",
+        "onTitleChange",
+        "onSelectionChange",
+        "onFontSizeChange",
+        "onClosed"
+      )
 
       Prop("sourceId") { (view: ReactNativeSshTerminalView, sourceId: String?) in
         view.bindSource(sourceId)
@@ -51,6 +59,10 @@ public class ReactNativeSshTerminalModule: Module {
 
       AsyncFunction("paste") { (view: ReactNativeSshTerminalView, text: String) in
         view.paste(text: text)
+      }.runOnQueue(.main)
+
+      AsyncFunction("pasteFromClipboard") { (view: ReactNativeSshTerminalView) in
+        view.pasteFromClipboard()
       }.runOnQueue(.main)
 
       AsyncFunction("copySelection") { (view: ReactNativeSshTerminalView) in
