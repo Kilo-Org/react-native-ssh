@@ -51,8 +51,7 @@ pub fn generate_ed25519_key(comment: String) -> Result<GeneratedKey, CoreError> 
     getrandom::fill(&mut seed).map_err(key_generation_error)?;
 
     let pair = Ed25519Keypair::from_seed(&seed);
-    let key =
-        PrivateKey::new(KeypairData::Ed25519(pair), comment).map_err(key_generation_error)?;
+    let key = PrivateKey::new(KeypairData::Ed25519(pair), comment).map_err(key_generation_error)?;
 
     let private_key_openssh = key
         .to_openssh(LineEnding::LF)
@@ -94,15 +93,15 @@ mod tests {
             generated.public_key_openssh
         );
         assert_eq!(
-            parsed
-                .public_key()
-                .fingerprint(HashAlg::Sha256)
-                .to_string(),
+            parsed.public_key().fingerprint(HashAlg::Sha256).to_string(),
             generated.fingerprint_sha256
         );
 
         let parsed_public =
             russh::keys::PublicKey::from_openssh(&generated.public_key_openssh).expect("public");
-        assert_eq!(parsed_public.comment().as_str(), "scaffold@test");
+        assert_eq!(
+            parsed_public.comment().as_str().expect("comment"),
+            "scaffold@test"
+        );
     }
 }
