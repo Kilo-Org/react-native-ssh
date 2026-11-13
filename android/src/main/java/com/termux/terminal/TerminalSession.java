@@ -78,7 +78,7 @@ public final class TerminalSession extends TerminalOutput {
     /** Write data to the other end of the transport. */
     @Override
     public void write(byte[] data, int offset, int count) {
-        if (!mClosed) mTransport.write(data, offset, count);
+        mTransport.write(data, offset, count);
     }
 
     /** Write the Unicode code point to the terminal encoded in UTF-8. */

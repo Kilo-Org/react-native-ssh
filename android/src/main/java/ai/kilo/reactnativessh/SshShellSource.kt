@@ -19,17 +19,16 @@ internal class SshShellSource private constructor(
   override fun write(bytes: ByteArray) {
     try {
       channel.write(bytes)
-    } catch (_: SshException.ChannelClosed) {
-      // The view can still type after the remote shell exits; the close event
-      // is the error path.
+    } catch (error: SshException.ChannelClosed) {
+      delivery.onClosed(null, error.message ?: "shell channel is closed")
     }
   }
 
   override fun resize(cols: Int, rows: Int) {
     try {
       channel.resize(cols.toUInt(), rows.toUInt())
-    } catch (_: SshException.ChannelClosed) {
-      // See write.
+    } catch (error: SshException.ChannelClosed) {
+      delivery.onClosed(null, error.message ?: "shell channel is closed")
     }
   }
 
@@ -107,11 +106,8 @@ internal class SinkDelivery : ByteSink {
 
   override fun onClosed(exitStatus: UInt?, error: String?) {
     val target = synchronized(lock) {
-      val current = sink
-      if (current == null) {
-        closeEvent = CloseEvent(exitStatus?.toInt(), error)
-      }
-      current
+      closeEvent = CloseEvent(exitStatus?.toInt(), error)
+      sink
     }
 
     target?.onClosed(exitStatus?.toInt(), error)

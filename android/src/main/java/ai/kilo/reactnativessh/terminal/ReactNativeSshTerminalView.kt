@@ -45,8 +45,10 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
     override fun onClosed(exitStatus: Int?, error: String?) {
       mainHandler.post {
-        transportClosed = true
-        session.notifyTransportClosed(exitStatus ?: 0, error)
+        if (!transportClosed) {
+          transportClosed = true
+          session.notifyTransportClosed(exitStatus ?: 0, error)
+        }
         TerminalViewEvents.emit(this@ReactNativeSshTerminalView, "onClosed", Bundle().apply {
           putInt("exitStatus", exitStatus ?: 0)
           putString("error", error)
@@ -57,9 +59,17 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   private val transport = object : TerminalTransport {
     override fun write(data: ByteArray, offset: Int, count: Int) {
-      if (transportClosed) return
+      if (transportClosed) {
+        sink.onClosed(null, "terminal source is closed")
+        return
+      }
+      val target = source
+      if (target == null) {
+        sink.onClosed(null, "terminal source '${sourceId.orEmpty()}' is not bound")
+        return
+      }
       val bytes = if (offset == 0 && count == data.size) data else data.copyOfRange(offset, offset + count)
-      source?.write(bytes)
+      target.write(bytes)
     }
 
     override fun resize(columns: Int, rows: Int) {
@@ -138,7 +148,6 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   fun sendInput(base64: String) {
     onMain {
-      if (transportClosed) return@onMain
       val bytes = Base64.decode(base64, Base64.DEFAULT)
       session.write(bytes, 0, bytes.size)
     }
@@ -146,7 +155,6 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   fun sendText(text: String) {
     onMain {
-      if (transportClosed) return@onMain
       session.write(text)
     }
   }
@@ -241,7 +249,7 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   internal fun pasteFromClipboard() {
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
     val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-    if (text.isEmpty() || transportClosed) return
+    if (text.isEmpty()) return
     session.write(text)
   }
 
@@ -298,7 +306,6 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private fun dpSize(dp: Double): Int = (dp * density()).roundToInt()
 
   private companion object {
-    const val LOG_TAG = "ReactNativeSshTerminal"
     const val TRANSCRIPT_ROWS = 10_000
     const val DEFAULT_FONT_SIZE_DP = 13.0
     const val MIN_FONT_SIZE_DP = 7.0

@@ -45,6 +45,17 @@ npx expo prebuild --platform android
 npx expo run:android
 ```
 
+## Terminal input
+
+Shell input and resize requests share one ordered queue. Shutdown stops accepting
+new input immediately, and remote closure stops the writer. A closed channel
+returns `ChannelClosed`; transport failures and writes through a closed or
+unbound Android terminal are reported through `onClosed` with an error message.
+
+The SSH integration tests run only when `SSH_TEST_HOST` is set. The
+`shell_preserves_rapid_single_byte_writes` test sends 16,384 individual writes,
+interleaves resizes, and compares the remote file byte for byte.
+
 ## License
 
 Apache-2.0. See [LICENSE](./LICENSE).

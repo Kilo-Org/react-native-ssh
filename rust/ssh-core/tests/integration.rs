@@ -525,6 +525,46 @@ async fn shell_resize_reaches_the_remote_pty() {
 }
 
 #[tokio::test]
+async fn shell_preserves_rapid_single_byte_writes() {
+    let server = server!();
+    let (session, shell, sink) = open_shell(&server, 80, 24).await;
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let path = format!("/tmp/ssh-core-byte-order-{}-{unique}", std::process::id());
+    let payload: Vec<u8> = (0..16_384).map(|index| b'!' + (index % 90) as u8).collect();
+    let command = format!(
+        "stty -echo -icanon; printf '\\nSSH_CORE_READY\\n'; head -c {} > {path}; stty sane; printf '\\nSSH_CORE_DONE\\n'\r",
+        payload.len()
+    );
+    shell.write(command.into_bytes()).expect("start receiver");
+    wait_for_text(&sink, "\r\nSSH_CORE_READY\r\n").await;
+
+    for (index, byte) in payload.iter().enumerate() {
+        shell.write(vec![*byte]).expect("single-byte write");
+        if index % 128 == 0 {
+            shell.resize(80 + (index % 20) as u32, 24).expect("resize");
+        }
+    }
+    wait_for_text(&sink, "\r\nSSH_CORE_DONE\r\n").await;
+    let received = session
+        .exec(format!("cat {path}; rm -f {path}"))
+        .await
+        .expect("read received bytes");
+    assert_eq!(received.exit_status, Some(0));
+    assert_eq!(received.stdout, payload);
+
+    shell.write(b"exit\r".to_vec()).expect("exit");
+    wait_for_close(&sink).await;
+    assert!(
+        matches!(shell.write(vec![b'x']), Err(SshError::ChannelClosed { .. })),
+        "writes after remote close must fail"
+    );
+    session.disconnect().await.expect("disconnect");
+}
+
+#[tokio::test]
 async fn exec_reports_stdout_stderr_and_exit_status() {
     let server = server!();
     let (session, _handler) = password_session(&server).await;

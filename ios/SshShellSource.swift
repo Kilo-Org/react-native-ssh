@@ -32,13 +32,19 @@ final class SshShellSource: TerminalByteSource, @unchecked Sendable {
   }
 
   func write(_ bytes: Data) {
-    // The view can still type after the remote shell exits; the close event is
-    // the error path.
-    try? channel.write(bytes: bytes)
+    do {
+      try channel.write(bytes: bytes)
+    } catch {
+      delivery.onClosed(exitStatus: nil, error: String(describing: error))
+    }
   }
 
   func resize(cols: Int, rows: Int) {
-    try? channel.resize(cols: UInt32(cols), rows: UInt32(rows))
+    do {
+      try channel.resize(cols: UInt32(cols), rows: UInt32(rows))
+    } catch {
+      delivery.onClosed(exitStatus: nil, error: String(describing: error))
+    }
   }
 
   func setSink(_ sink: TerminalSink?) {
@@ -98,9 +104,7 @@ final class SinkDelivery: ByteSink, @unchecked Sendable {
 
     lock.lock()
     let target = sink
-    if target == nil {
-      closeEvent = (status, error)
-    }
+    closeEvent = (status, error)
     lock.unlock()
 
     target?.onClosed(exitStatus: status, error: error)
