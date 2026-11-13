@@ -28,6 +28,52 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
 
+  rust-integration:
+    name: Rust integration
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Build the SSH test server
+        run: docker build -t ssh-core-test -f ssh-core/tests/docker/Dockerfile ssh-core/tests
+
+      - name: Start the SSH test servers
+        run: |
+          docker run -d --name ssh-core-password -p 2222:2222 ssh-core-test password
+          docker run -d --name ssh-core-twofactor -p 2223:2222 ssh-core-test two-factor
+          docker run -d --name ssh-core-silent -p 2224:2222 ssh-core-test silent
+          for port in 2222 2223 2224; do
+            for attempt in $(seq 1 30); do
+              if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then break; fi
+              sleep 1
+            done
+          done
+
+      - name: Run the integration suite
+        env:
+          SSH_TEST_HOST: 127.0.0.1
+        run: cargo test --test integration
+
+      - name: Show the server logs on failure
+        if: failure()
+        run: |
+          for name in ssh-core-password ssh-core-twofactor ssh-core-silent; do
+            echo "== $name"
+            docker logs "$name" || true
+          done
+
+      - name: Stop the SSH test servers
+        if: always()
+        run: docker rm -f ssh-core-password ssh-core-twofactor ssh-core-silent
+
+
   android:
     name: Android
     runs-on: ubuntu-latest

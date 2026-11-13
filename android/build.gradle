@@ -20,4 +20,6 @@ android {
 dependencies {
   // The uniffi Kotlin bindings call into libssh_core.so through JNA direct mapping.
   implementation 'net.java.dev.jna:jna:5.17.0@aar'
+  // The bindings expose async functions and callback interfaces as coroutines.
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
 }
