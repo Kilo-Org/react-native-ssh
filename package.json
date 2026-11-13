@@ -23,7 +23,11 @@
   ],
   "author": "Kilo Code <hello@kilocode.ai>",
   "license": "Apache-2.0",
-  "homepage": "https://kilocode.ai",
+  "homepage": "https://github.com/Kilo-Org/react-native-ssh",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kilo-Org/react-native-ssh.git"
+  },
   "dependencies": {},
   "devDependencies": {
     "@babel/core": "^7.26.0",
