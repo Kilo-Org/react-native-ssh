@@ -5,6 +5,7 @@
   "dependencies": {
     "@kilocode/react-native-ssh": "file:..",
     "expo": "~58.0.25",
+    "expo-font": "~58.0.12",
     "expo-status-bar": "~58.0.5",
     "react": "19.3.0",
     "react-native": "0.88.1"
@@ -17,7 +18,8 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "pty": "node dev/pty-server.mjs"
   },
   "private": true
 }

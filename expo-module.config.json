@@ -1,9 +1,12 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["ReactNativeSshModule"]
+    "modules": ["ReactNativeSshModule", "ReactNativeSshTerminalModule"]
   },
   "android": {
-    "modules": ["ai.kilo.reactnativessh.ReactNativeSshModule"]
+    "modules": [
+      "ai.kilo.reactnativessh.ReactNativeSshModule",
+      "ai.kilo.reactnativessh.terminal.ReactNativeSshTerminalModule"
+    ]
   }
 }

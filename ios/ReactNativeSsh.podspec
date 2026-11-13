@@ -19,6 +19,12 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
+  spm_dependency(s,
+    url: 'https://github.com/migueldeicaza/SwiftTerm',
+    requirement: { kind: 'exactVersion', version: '1.10.1' },
+    products: ['SwiftTerm']
+  )
+
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
