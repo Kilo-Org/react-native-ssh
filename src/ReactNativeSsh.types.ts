@@ -106,10 +106,39 @@ export type DisconnectNotice = {
   reason: string;
 };
 
+/**
+ * The texts the background session notification renders. `body` receives the
+ * number of open sessions so each plural form stays in the app's translations.
+ */
+export type BackgroundSessionTexts = {
+  channelName: string;
+  title: string;
+  body: (count: number) => string;
+  disconnectAllLabel: string;
+};
+
+/** The notification posted when a command finishes in the background. */
+export type IdleNotificationTexts = {
+  title: string;
+  body?: string;
+};
+
+export type SessionsChangedNotice = {
+  count: number;
+};
+
+export type CommandFinishedNotice = {
+  shellId: string;
+};
+
 export type SshEvents = {
   onHostKey: (request: HostKeyRequest) => void;
   onKeyboardInteractive: (request: KeyboardInteractiveRequest) => void;
   onDisconnect: (notice: DisconnectNotice) => void;
+  onSessionsChanged: (notice: SessionsChangedNotice) => void;
+  onCommandFinished: (notice: CommandFinishedNotice) => void;
+  /** The `Disconnect all` action of the session notification was tapped. */
+  onDisconnectAll: () => void;
 };
 
 /** The record shapes the native module exchanges; the public API maps to them. */

@@ -6,6 +6,7 @@ import ai.kilo.reactnativessh.uniffi.ByteSink
 import ai.kilo.reactnativessh.uniffi.ShellChannel
 import ai.kilo.reactnativessh.uniffi.SshException
 import ai.kilo.reactnativessh.uniffi.SshSession
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * A shell channel as the terminal view sees it: bytes go straight from Rust to
@@ -15,6 +16,7 @@ internal class SshShellSource private constructor(
   val sessionId: String,
   private val channel: ShellChannel,
   private val delivery: SinkDelivery,
+  val activity: ShellActivity,
 ) : TerminalByteSource {
   override fun write(bytes: ByteArray) {
     try {
@@ -39,8 +41,8 @@ internal class SshShellSource private constructor(
   fun close() {
     try {
       channel.shutdown()
-    } catch (_: SshException.ChannelClosed) {
-      // Already closed by the server.
+    } catch (_: SshException) {
+      // The channel is already gone when the transport died first.
     }
   }
 
@@ -52,11 +54,32 @@ internal class SshShellSource private constructor(
       cols: Int,
       rows: Int,
     ): SshShellSource {
-      val delivery = SinkDelivery()
+      val activity = ShellActivity()
+      val delivery = SinkDelivery(activity)
       val channel = session.openShell(term, cols.toUInt(), rows.toUInt(), delivery)
 
-      return SshShellSource(sessionId, channel, delivery)
+      return SshShellSource(sessionId, channel, delivery, activity)
     }
+  }
+}
+
+/**
+ * Output arrivals of one shell channel, as the background session notifications
+ * observe them. Listeners run on the thread that delivers the bytes.
+ */
+internal class ShellActivity {
+  private val listeners = CopyOnWriteArrayList<() -> Unit>()
+
+  fun markOutput() {
+    listeners.forEach { it() }
+  }
+
+  fun addListener(listener: () -> Unit) {
+    listeners.add(listener)
+  }
+
+  fun removeListener(listener: () -> Unit) {
+    listeners.remove(listener)
   }
 }
 
@@ -66,7 +89,7 @@ internal class SshShellSource private constructor(
  * The view attaches after the shell is opened, so bytes that arrive first are
  * buffered up to [MAX_BUFFERED_BYTES] and delivered on `bind`.
  */
-internal class SinkDelivery : ByteSink {
+internal class SinkDelivery(private val activity: ShellActivity) : ByteSink {
   private val lock = Any()
   private var sink: TerminalSink? = null
   private var buffered: MutableList<ByteArray>? = ArrayList()
@@ -93,6 +116,8 @@ internal class SinkDelivery : ByteSink {
   }
 
   override fun onData(bytes: ByteArray) {
+    activity.markOutput()
+
     val target = synchronized(lock) {
       val current = sink
       if (current == null) {

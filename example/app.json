@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "plugins": [["expo-font", { "fonts": ["./assets/fonts/JetBrainsMono-Regular.ttf"] }]],
+    "plugins": [
+      ["expo-font", { "fonts": ["./assets/fonts/JetBrainsMono-Regular.ttf"] }],
+      "@kilocode/react-native-ssh"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ai.kilo.reactnativessh.example"
