@@ -1,17 +1,15 @@
 import Foundation
 
-typealias EventEmitter = (String, [String: Any?]) -> Void
-
-final class TransferProgressSink: TransferProgress, @unchecked Sendable {
+public final class TransferProgressSink: TransferProgress, @unchecked Sendable {
   private let transferId: String
-  private let emit: EventEmitter
+  private let emit: (String, [String: Any?]) -> Void
 
-  init(transferId: String, emit: @escaping EventEmitter) {
+  public init(transferId: String, emit: @escaping (String, [String: Any?]) -> Void) {
     self.transferId = transferId
     self.emit = emit
   }
 
-  func onProgress(transferred: UInt64, total: UInt64?) {
+  public func onProgress(transferred: UInt64, total: UInt64?) {
     emit("onTransferProgress", [
       "transferId": transferId,
       "transferred": Double(transferred),
@@ -20,16 +18,16 @@ final class TransferProgressSink: TransferProgress, @unchecked Sendable {
   }
 }
 
-final class ForwardErrorSink: ForwardSink, @unchecked Sendable {
+public final class ForwardErrorSink: ForwardSink, @unchecked Sendable {
   private let sessionId: String
-  private let emit: EventEmitter
+  private let emit: (String, [String: Any?]) -> Void
 
-  init(sessionId: String, emit: @escaping EventEmitter) {
+  public init(sessionId: String, emit: @escaping (String, [String: Any?]) -> Void) {
     self.sessionId = sessionId
     self.emit = emit
   }
 
-  func onError(message: String) {
+  public func onError(message: String) {
     emit("onForwardError", ["sessionId": sessionId, "message": message])
   }
 }

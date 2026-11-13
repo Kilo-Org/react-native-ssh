@@ -100,14 +100,14 @@ public final class ReactNativeSshModule: Module {
       let client = try self.sftp(sftpId)
       let entries = try await translateAsync { try await client.list(path: path) }
 
-      return entries.map(SftpEntryRecord.init(entry:))
+      return entries.map(sftpEntryRecord)
     }
 
     AsyncFunction("sftpStat") { (sftpId: String, path: String) async throws -> SftpEntryRecord in
       let client = try self.sftp(sftpId)
       let entry = try await translateAsync { try await client.stat(path: path) }
 
-      return SftpEntryRecord(entry: entry)
+      return sftpEntryRecord(entry)
     }
 
     AsyncFunction("sftpRealpath") { (sftpId: String, path: String) async throws -> String in
@@ -292,7 +292,10 @@ public final class ReactNativeSshModule: Module {
     }
     state.store(forward: handle, id: forwardId)
 
-    return ForwardStartRecord(forwardId: forwardId, port: Int(handle.actualPort()))
+    var record = ForwardStartRecord()
+    record.forwardId = forwardId
+    record.port = Int(handle.actualPort())
+    return record
   }
 
   private func runCommand(_ sessionId: String, _ command: String) async throws -> ExecOutputRecord {

@@ -53,17 +53,11 @@ struct SftpEntryRecord: Record, @unchecked Sendable {
   @Field var size: Double = 0
   @Field var modifiedUnix: Double?
   @Field var permissions: Int?
+}
 
-  init(entry: Entry) {
-    name = entry.name
-    kind = SftpEntryRecord.eventName(entry.kind)
-    size = Double(entry.size)
-    modifiedUnix = entry.modifiedUnix.map(Double.init)
-    permissions = entry.permissions.map { Int($0) }
-  }
-
-  private static func eventName(_ kind: EntryKind) -> String {
-    switch kind {
+extension EntryKind {
+  var recordName: String {
+    switch self {
     case .file:
       return "file"
     case .directory:
@@ -74,6 +68,16 @@ struct SftpEntryRecord: Record, @unchecked Sendable {
       return "other"
     }
   }
+}
+
+func sftpEntryRecord(_ entry: Entry) -> SftpEntryRecord {
+  var record = SftpEntryRecord()
+  record.name = entry.name
+  record.kind = entry.kind.recordName
+  record.size = Double(entry.size)
+  record.modifiedUnix = entry.modifiedUnix.map(Double.init)
+  record.permissions = entry.permissions.map { Int($0) }
+  return record
 }
 
 struct ForwardConfigRecord: Record, @unchecked Sendable {
