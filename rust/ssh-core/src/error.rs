@@ -39,6 +39,16 @@ pub enum SshError {
     Protocol { message: String },
     /// A local key pair could not be created.
     KeyGeneration { message: String },
+    /// The remote path does not exist.
+    NotFound { path: String },
+    /// The server refused access to the path.
+    PermissionDenied { path: String },
+    /// The app cancelled the transfer.
+    Cancelled,
+    /// A port forward could not be set up.
+    Forwarding { message: String },
+    /// A file in the app sandbox could not be read or written.
+    LocalIo { message: String },
 }
 
 impl SshError {
@@ -61,6 +71,11 @@ impl SshError {
             Self::ChannelClosed { .. } => "ChannelClosed",
             Self::Protocol { .. } => "Protocol",
             Self::KeyGeneration { .. } => "KeyGeneration",
+            Self::NotFound { .. } => "NotFound",
+            Self::PermissionDenied { .. } => "PermissionDenied",
+            Self::Cancelled => "Cancelled",
+            Self::Forwarding { .. } => "Forwarding",
+            Self::LocalIo { .. } => "LocalIo",
         }
     }
 
@@ -101,6 +116,11 @@ impl fmt::Display for SshError {
             Self::ChannelClosed { message } => write!(f, "channel closed: {message}"),
             Self::Protocol { message } => write!(f, "protocol error: {message}"),
             Self::KeyGeneration { message } => write!(f, "key generation failed: {message}"),
+            Self::NotFound { path } => write!(f, "not found: {path}"),
+            Self::PermissionDenied { path } => write!(f, "permission denied: {path}"),
+            Self::Cancelled => write!(f, "cancelled"),
+            Self::Forwarding { message } => write!(f, "forwarding failed: {message}"),
+            Self::LocalIo { message } => write!(f, "local I/O error: {message}"),
         }
     }
 }
@@ -178,6 +198,70 @@ pub(crate) fn key_error(error: ssh_key::Error) -> SshError {
     }
 }
 
+/// Maps an SFTP failure, naming the path the operation addressed.
+pub(crate) fn sftp_error(path: &str, error: russh_sftp::client::error::Error) -> SshError {
+    use russh_sftp::client::error::Error as SftpError;
+    use russh_sftp::protocol::StatusCode;
+
+    match error {
+        SftpError::Status(status) => match status.status_code {
+            StatusCode::NoSuchFile => SshError::NotFound {
+                path: path.to_string(),
+            },
+            StatusCode::PermissionDenied => SshError::PermissionDenied {
+                path: path.to_string(),
+            },
+            StatusCode::NoConnection | StatusCode::ConnectionLost => SshError::Network {
+                message: status.error_message,
+            },
+            code => SshError::Protocol {
+                message: format!("{code} for {path}: {}", status.error_message),
+            },
+        },
+        other => other.into(),
+    }
+}
+
+/// Maps an I/O failure of an SFTP file object back to its protocol cause.
+pub(crate) fn sftp_io(path: &str, error: std::io::Error) -> SshError {
+    let message = error.to_string();
+
+    match error
+        .into_inner()
+        .map(|inner| inner.downcast::<russh_sftp::client::error::Error>())
+    {
+        Some(Ok(cause)) => sftp_error(path, *cause),
+        _ => SshError::Protocol {
+            message: format!("{path}: {message}"),
+        },
+    }
+}
+
+pub(crate) fn local_io(path: &std::path::Path, error: std::io::Error) -> SshError {
+    SshError::LocalIo {
+        message: format!("{}: {error}", path.display()),
+    }
+}
+
+impl From<russh_sftp::client::error::Error> for SshError {
+    fn from(error: russh_sftp::client::error::Error) -> Self {
+        use russh_sftp::client::error::Error as SftpError;
+
+        match error {
+            SftpError::Status(status) => SshError::Protocol {
+                message: format!("{}: {}", status.status_code, status.error_message),
+            },
+            SftpError::Timeout => SshError::Timeout {
+                message: "sftp request".to_string(),
+            },
+            SftpError::IO(message) => SshError::Network { message },
+            other => SshError::Protocol {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,6 +294,19 @@ mod tests {
             },
             SshError::KeyGeneration {
                 message: "no entropy".into(),
+            },
+            SshError::NotFound {
+                path: "/missing".into(),
+            },
+            SshError::PermissionDenied {
+                path: "/root".into(),
+            },
+            SshError::Cancelled,
+            SshError::Forwarding {
+                message: "port busy".into(),
+            },
+            SshError::LocalIo {
+                message: "no space".into(),
             },
         ]
     }
@@ -245,6 +342,11 @@ mod tests {
                 "ChannelClosed",
                 "Protocol",
                 "KeyGeneration",
+                "NotFound",
+                "PermissionDenied",
+                "Cancelled",
+                "Forwarding",
+                "LocalIo",
             ]
         );
     }

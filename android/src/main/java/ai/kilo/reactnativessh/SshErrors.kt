@@ -25,4 +25,9 @@ private fun SshException.code(): String = when (this) {
   is SshException.ChannelClosed -> "ChannelClosed"
   is SshException.Protocol -> "Protocol"
   is SshException.KeyGeneration -> "KeyGeneration"
+  is SshException.NotFound -> "NotFound"
+  is SshException.PermissionDenied -> "PermissionDenied"
+  is SshException.Cancelled -> "Cancelled"
+  is SshException.Forwarding -> "Forwarding"
+  is SshException.LocalIo -> "LocalIo"
 }

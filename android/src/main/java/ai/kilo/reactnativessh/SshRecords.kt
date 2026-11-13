@@ -46,6 +46,26 @@ class ExecOutputRecord(
   @Field val exitStatus: Int?,
 ) : Record
 
+class SftpEntryRecord(
+  @Field val name: String,
+  @Field val kind: String,
+  @Field val size: Double,
+  @Field val modifiedUnix: Double?,
+  @Field val permissions: Int?,
+) : Record
+
+class ForwardConfigRecord : Record {
+  @Field var bindHost: String = "127.0.0.1"
+  @Field var bindPort: Int = 0
+  @Field var destHost: String = ""
+  @Field var destPort: Int = 22
+}
+
+class ForwardStartRecord(
+  @Field val forwardId: String,
+  @Field val port: Int,
+) : Record
+
 internal class HostKeyRequestRecord(
   val sessionId: String,
   val requestId: String,

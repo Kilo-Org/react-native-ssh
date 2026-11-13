@@ -4,10 +4,15 @@ import Foundation
 final class SshModuleState: @unchecked Sendable {
   let sessionIds = IdSequence(prefix: "session-")
   let shellIds = IdSequence(prefix: "shell-")
+  let sftpIds = IdSequence(prefix: "sftp-")
+  let forwardIds = IdSequence(prefix: "forward-")
 
   private let lock = NSLock()
   private var sessions: [String: SshSession] = [:]
   private var shells: [String: SshShellSource] = [:]
+  private var sftps: [String: SftpClient] = [:]
+  private var forwards: [String: ForwardHandle] = [:]
+  private var cancels: [String: CancelToken] = [:]
   private var hostKeyRequests: [String: PendingRequest<Bool>] = [:]
   private var promptRequests: [String: PendingRequest<PromptReply>] = [:]
 
@@ -57,6 +62,72 @@ final class SshModuleState: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     return Array(shells.keys)
+  }
+
+  func store(sftp: SftpClient, id: String) {
+    lock.lock()
+    sftps[id] = sftp
+    lock.unlock()
+  }
+
+  func sftp(_ id: String) -> SftpClient? {
+    lock.lock()
+    defer { lock.unlock() }
+    return sftps[id]
+  }
+
+  func removeSftp(_ id: String) -> SftpClient? {
+    lock.lock()
+    defer { lock.unlock() }
+    return sftps.removeValue(forKey: id)
+  }
+
+  func allSftps() -> [SftpClient] {
+    lock.lock()
+    defer { lock.unlock() }
+    return Array(sftps.values)
+  }
+
+  func store(forward: ForwardHandle, id: String) {
+    lock.lock()
+    forwards[id] = forward
+    lock.unlock()
+  }
+
+  func removeForward(_ id: String) -> ForwardHandle? {
+    lock.lock()
+    defer { lock.unlock() }
+    return forwards.removeValue(forKey: id)
+  }
+
+  func allForwards() -> [ForwardHandle] {
+    lock.lock()
+    defer { lock.unlock() }
+    return Array(forwards.values)
+  }
+
+  func store(cancel: CancelToken, id: String) {
+    lock.lock()
+    cancels[id] = cancel
+    lock.unlock()
+  }
+
+  func cancel(_ id: String) -> CancelToken? {
+    lock.lock()
+    defer { lock.unlock() }
+    return cancels[id]
+  }
+
+  func removeCancel(_ id: String) -> CancelToken? {
+    lock.lock()
+    defer { lock.unlock() }
+    return cancels.removeValue(forKey: id)
+  }
+
+  func allCancels() -> [CancelToken] {
+    lock.lock()
+    defer { lock.unlock() }
+    return Array(cancels.values)
   }
 
   func store(hostKeyRequest: PendingRequest<Bool>, id: String) {

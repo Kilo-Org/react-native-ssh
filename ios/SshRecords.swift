@@ -47,6 +47,51 @@ struct ExecOutputRecord: Record, @unchecked Sendable {
   @Field var exitStatus: Int?
 }
 
+struct SftpEntryRecord: Record, @unchecked Sendable {
+  @Field var name: String = ""
+  @Field var kind: String = ""
+  @Field var size: Double = 0
+  @Field var modifiedUnix: Double?
+  @Field var permissions: Int?
+}
+
+extension EntryKind {
+  var recordName: String {
+    switch self {
+    case .file:
+      return "file"
+    case .directory:
+      return "directory"
+    case .symlink:
+      return "symlink"
+    case .other:
+      return "other"
+    }
+  }
+}
+
+func sftpEntryRecord(_ entry: Entry) -> SftpEntryRecord {
+  var record = SftpEntryRecord()
+  record.name = entry.name
+  record.kind = entry.kind.recordName
+  record.size = Double(entry.size)
+  record.modifiedUnix = entry.modifiedUnix.map(Double.init)
+  record.permissions = entry.permissions.map { Int($0) }
+  return record
+}
+
+struct ForwardConfigRecord: Record, @unchecked Sendable {
+  @Field var bindHost: String = "127.0.0.1"
+  @Field var bindPort: Int = 0
+  @Field var destHost: String = ""
+  @Field var destPort: Int = 22
+}
+
+struct ForwardStartRecord: Record, @unchecked Sendable {
+  @Field var forwardId: String = ""
+  @Field var port: Int = 0
+}
+
 struct HostKeyRequest: Sendable {
   let sessionId: String
   let requestId: String
