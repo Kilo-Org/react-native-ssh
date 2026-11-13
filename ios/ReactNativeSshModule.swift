@@ -41,6 +41,14 @@ public final class ReactNativeSshModule: Module {
       )
     }
 
+    AsyncFunction("encryptExport") { (plaintextJson: String, passphrase: String) throws -> String in
+      try translate { try encryptExport(plaintextJson: plaintextJson, passphrase: passphrase) }
+    }
+
+    AsyncFunction("decryptExport") { (armored: String, passphrase: String) throws -> String in
+      try translate { try decryptExport(armored: armored, passphrase: passphrase) }
+    }
+
     AsyncFunction("connect") { (config: ConnectConfigRecord) async throws -> String in
       try await self.connectSession(config)
     }

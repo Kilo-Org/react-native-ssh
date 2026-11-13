@@ -5,6 +5,7 @@
 uniffi::setup_scaffolding!();
 
 mod error;
+mod export;
 mod forward;
 mod key;
 mod runtime;
@@ -14,6 +15,7 @@ mod shell;
 mod transfer;
 
 pub use error::SshError;
+pub use export::{decrypt_export, encrypt_export};
 pub use forward::{ForwardConfig, ForwardHandle, ForwardSink};
 pub use key::{GeneratedKey, ParsedKey, generate_ed25519_key, parse_private_key};
 pub use session::{AuthMethod, ConnectConfig, ExecResult, Prompt, SessionHandler, SshSession};

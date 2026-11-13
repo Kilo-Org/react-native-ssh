@@ -16,6 +16,8 @@ declare class ReactNativeSshModule extends NativeModule<SshEvents> {
   coreVersion(): string;
   generateEd25519Key(comment: string): Promise<GeneratedKey>;
   parsePrivateKey(pem: string, passphrase: string | null): ParsedKey;
+  encryptExport(plaintextJson: string, passphrase: string): Promise<string>;
+  decryptExport(armored: string, passphrase: string): Promise<string>;
   connect(config: NativeConnectConfig): Promise<string>;
   /** Connects through an authenticated session that carries the stream. */
   connectVia(jumpSessionId: string, config: NativeConnectConfig): Promise<string>;

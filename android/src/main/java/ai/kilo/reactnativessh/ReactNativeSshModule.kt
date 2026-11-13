@@ -18,6 +18,8 @@ import ai.kilo.reactnativessh.uniffi.SshSession
 import ai.kilo.reactnativessh.uniffi.TransferProgress
 import ai.kilo.reactnativessh.uniffi.categoryIsRetryable
 import ai.kilo.reactnativessh.uniffi.coreVersion
+import ai.kilo.reactnativessh.uniffi.decryptExport
+import ai.kilo.reactnativessh.uniffi.encryptExport
 import ai.kilo.reactnativessh.uniffi.generateEd25519Key
 import ai.kilo.reactnativessh.uniffi.parsePrivateKey
 import android.content.Context
@@ -90,6 +92,14 @@ class ReactNativeSshModule : Module() {
         fingerprintSha256 = key.fingerprintSha256,
         encrypted = key.encrypted,
       )
+    }
+
+    AsyncFunction("encryptExport") { plaintextJson: String, passphrase: String ->
+      translateFailures { encryptExport(plaintextJson, passphrase) }
+    }
+
+    AsyncFunction("decryptExport") { armored: String, passphrase: String ->
+      translateFailures { decryptExport(armored, passphrase) }
     }
 
     AsyncFunction("connect").SuspendBody { config: ConnectConfigRecord ->
