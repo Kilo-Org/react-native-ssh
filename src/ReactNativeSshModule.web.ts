@@ -35,10 +35,7 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
     return Promise.reject(new Error(unavailable));
   }
 
-  connectVia(
-    _jumpSessionId: string,
-    _config: NativeConnectConfig
-  ): Promise<string> {
+  connectVia(_jumpSessionId: string, _config: NativeConnectConfig): Promise<string> {
     return Promise.reject(new Error(unavailable));
   }
 
@@ -147,10 +144,7 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
     unsupported();
   }
 
-  startLocalForward(
-    _sessionId: string,
-    _config: NativeForwardConfig
-  ): Promise<NativeForwardStart> {
+  startLocalForward(_sessionId: string, _config: NativeForwardConfig): Promise<NativeForwardStart> {
     return Promise.reject(new Error(unavailable));
   }
 

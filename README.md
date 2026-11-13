@@ -12,14 +12,14 @@ releases.
 
 ## Layout
 
-| Path | Contents |
-| --- | --- |
-| `rust/ssh-core` | The Rust library (`core_version`, `generate_ed25519_key`) |
-| `rust/uniffi-bindgen` | Bindings generator binary used by the build scripts |
-| `android/`, `ios/` | The Expo module and its native build files |
-| `src/` | TypeScript API |
-| `example/` | Expo app that prints the core version and a generated key |
-| `scripts/` | Native build scripts |
+| Path                  | Contents                                                  |
+| --------------------- | --------------------------------------------------------- |
+| `rust/ssh-core`       | The Rust library (`core_version`, `generate_ed25519_key`) |
+| `rust/uniffi-bindgen` | Bindings generator binary used by the build scripts       |
+| `android/`, `ios/`    | The Expo module and its native build files                |
+| `src/`                | TypeScript API                                            |
+| `example/`            | Expo app that prints the core version and a generated key |
+| `scripts/`            | Native build scripts                                      |
 
 ## Building
 

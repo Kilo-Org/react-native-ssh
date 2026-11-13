@@ -39,7 +39,13 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#101418', paddingTop: 40 },
   tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingBottom: 8 },
-  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: '#1b2027', borderRadius: 6 },
+  tab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#1b2027',
+    borderRadius: 6,
+  },
   tabSelected: { backgroundColor: '#2f6f4f' },
   tabLabel: { color: '#d8dee9', fontSize: 12 },
 });

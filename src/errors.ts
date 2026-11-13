@@ -1,7 +1,4 @@
-import {
-  SSH_ERROR_CODES,
-  type SshErrorCode,
-} from './ReactNativeSsh.types';
+import { SSH_ERROR_CODES, type SshErrorCode } from './ReactNativeSsh.types';
 import ReactNativeSsh from './ReactNativeSshModule';
 
 /** A failed SSH call, categorised by [`SshErrorCode`]. */

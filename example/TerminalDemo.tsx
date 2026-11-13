@@ -136,6 +136,12 @@ const styles = StyleSheet.create({
   status: { color: '#5a6472', fontSize: 11 },
   terminal: { flex: 1 },
   actions: { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: '#1b2027' },
-  action: { flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: '#2a323d', borderRadius: 6 },
+  action: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#2a323d',
+    borderRadius: 6,
+  },
   actionLabel: { color: '#d8dee9', fontSize: 12 },
 });

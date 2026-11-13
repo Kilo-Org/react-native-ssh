@@ -1,7 +1,4 @@
-import type {
-  NativeForwardConfig,
-  NativeForwardStart,
-} from './ReactNativeSsh.types';
+import type { NativeForwardConfig, NativeForwardStart } from './ReactNativeSsh.types';
 import ReactNativeSsh from './ReactNativeSshModule';
 import { guard } from './errors';
 
@@ -25,23 +22,13 @@ export type Forward = {
 const DEFAULT_BIND_HOST = '127.0.0.1';
 
 /** Listens on the device and reaches `destHost:destPort` from the server. */
-export function startLocalForward(
-  sessionId: string,
-  config: ForwardConfig
-): Promise<Forward> {
-  return track(() =>
-    ReactNativeSsh.startLocalForward(sessionId, nativeConfig(config))
-  );
+export function startLocalForward(sessionId: string, config: ForwardConfig): Promise<Forward> {
+  return track(() => ReactNativeSsh.startLocalForward(sessionId, nativeConfig(config)));
 }
 
 /** Asks the server to listen and delivers connections to the device. */
-export function startRemoteForward(
-  sessionId: string,
-  config: ForwardConfig
-): Promise<Forward> {
-  return track(() =>
-    ReactNativeSsh.startRemoteForward(sessionId, nativeConfig(config))
-  );
+export function startRemoteForward(sessionId: string, config: ForwardConfig): Promise<Forward> {
+  return track(() => ReactNativeSsh.startRemoteForward(sessionId, nativeConfig(config)));
 }
 
 async function track(start: () => Promise<NativeForwardStart>): Promise<Forward> {

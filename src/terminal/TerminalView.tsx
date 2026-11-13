@@ -28,7 +28,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
     onClosed,
     ...viewProps
   },
-  ref,
+  ref
 ) {
   const nativeTheme = useMemo(() => resolveTheme(theme), [theme]);
 
@@ -45,8 +45,12 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
       onLinkPress={onLinkPress && ((event) => onLinkPress(event.nativeEvent.url))}
       onBell={onBell}
       onTitleChange={onTitleChange && ((event) => onTitleChange(event.nativeEvent.title))}
-      onSelectionChange={onSelectionChange && ((event) => onSelectionChange(event.nativeEvent.selecting))}
-      onFontSizeChange={onFontSizeChange && ((event) => onFontSizeChange(event.nativeEvent.fontSize))}
+      onSelectionChange={
+        onSelectionChange && ((event) => onSelectionChange(event.nativeEvent.selecting))
+      }
+      onFontSizeChange={
+        onFontSizeChange && ((event) => onFontSizeChange(event.nativeEvent.fontSize))
+      }
       onClosed={onClosed && ((event) => onClosed(event.nativeEvent))}
     />
   );

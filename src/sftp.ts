@@ -12,10 +12,7 @@ export function closeSftp(sftpId: string): Promise<void> {
   return guard(() => ReactNativeSsh.closeSftp(sftpId));
 }
 
-export function listDirectory(
-  sftpId: string,
-  path: string
-): Promise<SftpEntry[]> {
+export function listDirectory(sftpId: string, path: string): Promise<SftpEntry[]> {
   return guard(() => ReactNativeSsh.sftpList(sftpId, path));
 }
 
@@ -32,11 +29,7 @@ export function makeDirectory(sftpId: string, path: string): Promise<void> {
   return guard(() => ReactNativeSsh.sftpMkdir(sftpId, path));
 }
 
-export function renamePath(
-  sftpId: string,
-  from: string,
-  to: string
-): Promise<void> {
+export function renamePath(sftpId: string, from: string, to: string): Promise<void> {
   return guard(() => ReactNativeSsh.sftpRename(sftpId, from, to));
 }
 
@@ -60,8 +53,7 @@ export function download(
   options: TransferOptions = {}
 ): Promise<number> {
   return transfer(
-    (transferId) =>
-      ReactNativeSsh.sftpDownload(sftpId, remotePath, localFileUrl, transferId),
+    (transferId) => ReactNativeSsh.sftpDownload(sftpId, remotePath, localFileUrl, transferId),
     options
   );
 }
@@ -77,8 +69,7 @@ export function upload(
   options: TransferOptions = {}
 ): Promise<number> {
   return transfer(
-    (transferId) =>
-      ReactNativeSsh.sftpUpload(sftpId, localFileUrl, remotePath, transferId),
+    (transferId) => ReactNativeSsh.sftpUpload(sftpId, localFileUrl, remotePath, transferId),
     options
   );
 }
@@ -90,9 +81,7 @@ async function transfer(
   options: TransferOptions
 ): Promise<number> {
   const transferId = `transfer-${(transfers += 1)}`;
-  const subscription = options.onProgress
-    ? listen(transferId, options.onProgress)
-    : undefined;
+  const subscription = options.onProgress ? listen(transferId, options.onProgress) : undefined;
   const abort = () => ReactNativeSsh.cancelTransfer(transferId);
   options.signal?.addEventListener('abort', abort);
 
@@ -104,10 +93,7 @@ async function transfer(
   }
 }
 
-function listen(
-  transferId: string,
-  onProgress: NonNullable<TransferOptions['onProgress']>
-) {
+function listen(transferId: string, onProgress: NonNullable<TransferOptions['onProgress']>) {
   return ReactNativeSsh.addListener('onTransferProgress', (event) => {
     if (event.transferId === transferId) {
       onProgress({ transferred: event.transferred, total: event.total });

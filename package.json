@@ -19,6 +19,8 @@
   "scripts": {
     "build": "node internal/module_scripts/build.js",
     "clean": "node internal/module_scripts/clean.js",
+    "format": "prettier --write \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}\"",
     "lint": "eslint src/",
     "test": "node internal/module_scripts/test.js",
     "prepare": "node internal/module_scripts/prepare.js",
