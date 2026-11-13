@@ -4,13 +4,13 @@ plugins {
 }
 
 group = 'ai.kilo.reactnativessh'
-version = '0.0.0'
+version = new groovy.json.JsonSlurper().parse(file('../package.json')).version
 
 android {
   namespace "ai.kilo.reactnativessh"
   defaultConfig {
     versionCode 1
-    versionName "0.0.0"
+    versionName project.version
   }
   lintOptions {
     abortOnError false
