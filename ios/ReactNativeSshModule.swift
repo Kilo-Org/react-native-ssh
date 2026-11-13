@@ -5,7 +5,13 @@ public final class ReactNativeSshModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("ReactNativeSsh")
-    Events("onHostKey", "onKeyboardInteractive", "onDisconnect")
+    Events(
+      "onHostKey",
+      "onKeyboardInteractive",
+      "onDisconnect",
+      "onTransferProgress",
+      "onForwardError"
+    )
 
     Function("coreVersion") { () -> String in
       coreVersion()
@@ -34,6 +40,10 @@ public final class ReactNativeSshModule: Module {
 
     AsyncFunction("connect") { (config: ConnectConfigRecord) async throws -> String in
       try await self.connectSession(config)
+    }
+
+    AsyncFunction("connectVia") { (jumpSessionId: String, config: ConnectConfigRecord) async throws -> String in
+      try await self.connectSession(config, via: jumpSessionId)
     }
 
     AsyncFunction("exec") { (sessionId: String, command: String) async throws -> ExecOutputRecord in
@@ -66,9 +76,134 @@ public final class ReactNativeSshModule: Module {
       self.isRetryable(code)
     }
 
+    AsyncFunction("openSftp") { (sessionId: String) async throws -> String in
+      guard let session = self.state.session(sessionId) else {
+        throw channelClosed(sessionId)
+      }
+
+      let sftpId = self.state.sftpIds.next()
+      let client = try await translateAsync { try await session.openSftp() }
+      self.state.store(sftp: client, id: sftpId)
+
+      return sftpId
+    }
+
+    AsyncFunction("closeSftp") { (sftpId: String) async throws in
+      guard let client = self.state.removeSftp(sftpId) else {
+        return
+      }
+
+      try await translateAsync { try await client.shutdown() }
+    }
+
+    AsyncFunction("sftpList") { (sftpId: String, path: String) async throws -> [SftpEntryRecord] in
+      let client = try self.sftp(sftpId)
+      let entries = try await translateAsync { try await client.list(path: path) }
+
+      return entries.map(SftpEntryRecord.init(entry:))
+    }
+
+    AsyncFunction("sftpStat") { (sftpId: String, path: String) async throws -> SftpEntryRecord in
+      let client = try self.sftp(sftpId)
+      let entry = try await translateAsync { try await client.stat(path: path) }
+
+      return SftpEntryRecord(entry: entry)
+    }
+
+    AsyncFunction("sftpRealpath") { (sftpId: String, path: String) async throws -> String in
+      let client = try self.sftp(sftpId)
+
+      return try await translateAsync { try await client.realpath(path: path) }
+    }
+
+    AsyncFunction("sftpMkdir") { (sftpId: String, path: String) async throws in
+      let client = try self.sftp(sftpId)
+
+      try await translateAsync { try await client.mkdir(path: path) }
+    }
+
+    AsyncFunction("sftpRename") { (sftpId: String, from: String, to: String) async throws in
+      let client = try self.sftp(sftpId)
+
+      try await translateAsync { try await client.rename(from: from, to: to) }
+    }
+
+    AsyncFunction("sftpRemoveFile") { (sftpId: String, path: String) async throws in
+      let client = try self.sftp(sftpId)
+
+      try await translateAsync { try await client.removeFile(path: path) }
+    }
+
+    AsyncFunction("sftpRemoveDir") { (sftpId: String, path: String) async throws in
+      let client = try self.sftp(sftpId)
+
+      try await translateAsync { try await client.removeDir(path: path) }
+    }
+
+    AsyncFunction("sftpDownload")
+    { (sftpId: String, remotePath: String, localPath: String, transferId: String) async throws -> Double in
+      let client = try self.sftp(sftpId)
+
+      return try await self.transfer(transferId) { progress, cancel in
+        try await client.download(
+          remotePath: remotePath,
+          localPath: localPath,
+          progress: progress,
+          cancel: cancel
+        )
+      }
+    }
+
+    AsyncFunction("sftpUpload")
+    { (sftpId: String, localPath: String, remotePath: String, transferId: String) async throws -> Double in
+      let client = try self.sftp(sftpId)
+
+      return try await self.transfer(transferId) { progress, cancel in
+        try await client.upload(
+          localPath: localPath,
+          remotePath: remotePath,
+          progress: progress,
+          cancel: cancel
+        )
+      }
+    }
+
+    Function("cancelTransfer") { (transferId: String) in
+      self.state.cancel(transferId)?.cancel()
+    }
+
+    AsyncFunction("startLocalForward")
+    { (sessionId: String, config: ForwardConfigRecord) async throws -> ForwardStartRecord in
+      try await self.startForward(sessionId, config) { session, native, sink in
+        try await session.startLocalForward(config: native, events: sink)
+      }
+    }
+
+    AsyncFunction("startRemoteForward")
+    { (sessionId: String, config: ForwardConfigRecord) async throws -> ForwardStartRecord in
+      try await self.startForward(sessionId, config) { session, native, sink in
+        try await session.startRemoteForward(config: native, events: sink)
+      }
+    }
+
+    AsyncFunction("stopForward") { (forwardId: String) async throws in
+      guard let handle = self.state.removeForward(forwardId) else {
+        return
+      }
+
+      try await translateAsync { try await handle.stop() }
+    }
+
     OnDestroy {
       self.state.allShellIds().forEach { self.closeShell($0) }
+      self.state.allCancels().forEach { $0.cancel() }
       Task {
+        for client in self.state.allSftps() {
+          try? await client.shutdown()
+        }
+        for forward in self.state.allForwards() {
+          try? await forward.stop()
+        }
         for session in self.state.allSessions() {
           try? await session.disconnect()
         }
@@ -80,7 +215,10 @@ public final class ReactNativeSshModule: Module {
     categoryIsRetryable(category: code)
   }
 
-  private func connectSession(_ config: ConnectConfigRecord) async throws -> String {
+  private func connectSession(
+    _ config: ConnectConfigRecord,
+    via jumpSessionId: String? = nil
+  ) async throws -> String {
     let sessionId = state.sessionIds.next()
     let handler = JsSessionHandler(
       sessionId: sessionId,
@@ -95,10 +233,66 @@ public final class ReactNativeSshModule: Module {
       }
     )
 
-    let session = try await translateAsync { try await SshSession.connect(config: config.toNative(), handler: handler) }
+    let session: SshSession
+    if let jumpSessionId {
+      guard let jump = state.session(jumpSessionId) else {
+        throw channelClosed(jumpSessionId)
+      }
+      session = try await translateAsync {
+        try await SshSession.connectVia(jump: jump, config: config.toNative(), handler: handler)
+      }
+    } else {
+      session = try await translateAsync {
+        try await SshSession.connect(config: config.toNative(), handler: handler)
+      }
+    }
+
     state.store(session: session, id: sessionId)
 
     return sessionId
+  }
+
+  private func sftp(_ sftpId: String) throws -> SftpClient {
+    guard let client = state.sftp(sftpId) else {
+      throw channelClosed(sftpId)
+    }
+
+    return client
+  }
+
+  private func transfer(
+    _ transferId: String,
+    run: (TransferProgress, CancelToken) async throws -> UInt64
+  ) async throws -> Double {
+    let cancel = CancelToken()
+    state.store(cancel: cancel, id: transferId)
+    defer { _ = state.removeCancel(transferId) }
+    let progress = TransferProgressSink(transferId: transferId) { event, payload in
+      self.sendEvent(event, payload)
+    }
+
+    return Double(try await translateAsync { try await run(progress, cancel) })
+  }
+
+  private func startForward(
+    _ sessionId: String,
+    _ config: ForwardConfigRecord,
+    start: (SshSession, ForwardConfig, ForwardSink) async throws -> ForwardHandle
+  ) async throws -> ForwardStartRecord {
+    guard let session = state.session(sessionId) else {
+      throw channelClosed(sessionId)
+    }
+
+    let forwardId = state.forwardIds.next()
+    let sink = ForwardErrorSink(sessionId: sessionId) { event, payload in
+      self.sendEvent(event, payload)
+    }
+    let handle = try await translateAsync {
+      try await start(session, config.toNative(), sink)
+    }
+    state.store(forward: handle, id: forwardId)
+
+    return ForwardStartRecord(forwardId: forwardId, port: Int(handle.actualPort()))
   }
 
   private func runCommand(_ sessionId: String, _ command: String) async throws -> ExecOutputRecord {
@@ -212,6 +406,24 @@ private extension ConnectConfigRecord {
       auth: try auth.toNative(),
       connectTimeoutMs: UInt32(connectTimeoutMs),
       keepaliveIntervalS: UInt32(keepaliveIntervalS)
+    )
+  }
+}
+
+private extension ForwardConfigRecord {
+  func toNative() throws -> ForwardConfig {
+    guard bindPort >= 0 && bindPort <= 65535 else {
+      throw Exception(name: "SshError", description: "bindPort must be between 0 and 65535", code: "Protocol")
+    }
+    guard destPort >= 1 && destPort <= 65535 else {
+      throw Exception(name: "SshError", description: "destPort must be between 1 and 65535", code: "Protocol")
+    }
+
+    return ForwardConfig(
+      bindHost: bindHost,
+      bindPort: UInt16(bindPort),
+      destHost: destHost,
+      destPort: UInt16(destPort)
     )
   }
 }

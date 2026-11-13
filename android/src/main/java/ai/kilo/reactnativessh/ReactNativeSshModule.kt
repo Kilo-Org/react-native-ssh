@@ -2,9 +2,18 @@ package ai.kilo.reactnativessh
 
 import ai.kilo.reactnativessh.terminal.TerminalSourceRegistry
 import ai.kilo.reactnativessh.uniffi.AuthMethod
+import ai.kilo.reactnativessh.uniffi.CancelToken
 import ai.kilo.reactnativessh.uniffi.ConnectConfig
+import ai.kilo.reactnativessh.uniffi.Entry
+import ai.kilo.reactnativessh.uniffi.EntryKind
+import ai.kilo.reactnativessh.uniffi.ForwardConfig
+import ai.kilo.reactnativessh.uniffi.ForwardHandle
+import ai.kilo.reactnativessh.uniffi.ForwardSink
+import ai.kilo.reactnativessh.uniffi.SessionHandler
+import ai.kilo.reactnativessh.uniffi.SftpClient
 import ai.kilo.reactnativessh.uniffi.SshException
 import ai.kilo.reactnativessh.uniffi.SshSession
+import ai.kilo.reactnativessh.uniffi.TransferProgress
 import ai.kilo.reactnativessh.uniffi.categoryIsRetryable
 import ai.kilo.reactnativessh.uniffi.coreVersion
 import ai.kilo.reactnativessh.uniffi.generateEd25519Key
@@ -21,18 +30,31 @@ import kotlinx.coroutines.launch
 internal const val EVENT_HOST_KEY = "onHostKey"
 internal const val EVENT_KEYBOARD_INTERACTIVE = "onKeyboardInteractive"
 internal const val EVENT_DISCONNECT = "onDisconnect"
+internal const val EVENT_TRANSFER_PROGRESS = "onTransferProgress"
+internal const val EVENT_FORWARD_ERROR = "onForwardError"
 
 class ReactNativeSshModule : Module() {
   private val sessions = ConcurrentHashMap<String, SshSession>()
   private val shells = ConcurrentHashMap<String, SshShellSource>()
+  private val sftps = ConcurrentHashMap<String, SftpClient>()
+  private val forwards = ConcurrentHashMap<String, ForwardHandle>()
+  private val cancels = ConcurrentHashMap<String, CancelToken>()
   private val hostKeyRequests = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
   private val promptRequests = ConcurrentHashMap<String, CompletableDeferred<List<String>?>>()
   private val sessionIds = IdSequence("session-")
   private val shellIds = IdSequence("shell-")
+  private val sftpIds = IdSequence("sftp-")
+  private val forwardIds = IdSequence("forward-")
 
   override fun definition() = ModuleDefinition {
     Name("ReactNativeSsh")
-    Events(EVENT_HOST_KEY, EVENT_KEYBOARD_INTERACTIVE, EVENT_DISCONNECT)
+    Events(
+      EVENT_HOST_KEY,
+      EVENT_KEYBOARD_INTERACTIVE,
+      EVENT_DISCONNECT,
+      EVENT_TRANSFER_PROGRESS,
+      EVENT_FORWARD_ERROR,
+    )
 
     Function("coreVersion") {
       coreVersion()
@@ -56,7 +78,13 @@ class ReactNativeSshModule : Module() {
     }
 
     AsyncFunction("connect").SuspendBody { config: ConnectConfigRecord ->
-      connectSession(config)
+      connectSession(config) { handler -> SshSession.connect(config.toNative(), handler) }
+    }
+
+    AsyncFunction("connectVia").SuspendBody { jumpSessionId: String, config: ConnectConfigRecord ->
+      val jump = session(jumpSessionId)
+
+      connectSession(config) { handler -> SshSession.connectVia(jump, config.toNative(), handler) }
     }
 
     AsyncFunction("exec").SuspendBody { sessionId: String, command: String ->
@@ -87,16 +115,95 @@ class ReactNativeSshModule : Module() {
       categoryIsRetryable(code)
     }
 
+    AsyncFunction("openSftp").SuspendBody { sessionId: String ->
+      val sftpId = sftpIds.next()
+      sftps[sftpId] = translateSuspendFailures { session(sessionId).openSftp() }
+
+      sftpId
+    }
+
+    AsyncFunction("closeSftp").SuspendBody { sftpId: String ->
+      sftps.remove(sftpId)?.let { client -> translateSuspendFailures { client.shutdown() } }
+    }
+
+    AsyncFunction("sftpList").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).list(path) }.map(Entry::toRecord)
+    }
+
+    AsyncFunction("sftpStat").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).stat(path) }.toRecord()
+    }
+
+    AsyncFunction("sftpRealpath").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).realpath(path) }
+    }
+
+    AsyncFunction("sftpMkdir").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).mkdir(path) }
+    }
+
+    AsyncFunction("sftpRename").SuspendBody { sftpId: String, from: String, to: String ->
+      translateSuspendFailures { sftp(sftpId).rename(from, to) }
+    }
+
+    AsyncFunction("sftpRemoveFile").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).removeFile(path) }
+    }
+
+    AsyncFunction("sftpRemoveDir").SuspendBody { sftpId: String, path: String ->
+      translateSuspendFailures { sftp(sftpId).removeDir(path) }
+    }
+
+    AsyncFunction("sftpDownload")
+      .SuspendBody { sftpId: String, remotePath: String, localPath: String, transferId: String ->
+        transfer(transferId) { progress, cancel ->
+          sftp(sftpId).download(remotePath, localPath, progress, cancel)
+        }
+      }
+
+    AsyncFunction("sftpUpload")
+      .SuspendBody { sftpId: String, localPath: String, remotePath: String, transferId: String ->
+        transfer(transferId) { progress, cancel ->
+          sftp(sftpId).upload(localPath, remotePath, progress, cancel)
+        }
+      }
+
+    Function("cancelTransfer") { transferId: String ->
+      cancels[transferId]?.cancel()
+    }
+
+    AsyncFunction("startLocalForward").SuspendBody { sessionId: String, config: ForwardConfigRecord ->
+      registerForward {
+        session(sessionId).startLocalForward(config.toNative(), forwardSink(sessionId))
+      }
+    }
+
+    AsyncFunction("startRemoteForward").SuspendBody { sessionId: String, config: ForwardConfigRecord ->
+      registerForward {
+        session(sessionId).startRemoteForward(config.toNative(), forwardSink(sessionId))
+      }
+    }
+
+    AsyncFunction("stopForward").SuspendBody { forwardId: String ->
+      forwards.remove(forwardId)?.let { handle -> translateSuspendFailures { handle.stop() } }
+    }
+
     OnDestroy {
       val scope = CoroutineScope(Dispatchers.IO)
 
       shells.keys.forEach(::closeShell)
+      sftps.values.forEach { client -> scope.launch { runCatching { client.shutdown() } } }
+      forwards.values.forEach { handle -> scope.launch { runCatching { handle.stop() } } }
+      cancels.values.forEach { token -> token.cancel() }
       sessions.forEach { (_, session) -> scope.launch { runCatching { session.disconnect() } } }
       sessions.clear()
     }
   }
 
-  private suspend fun connectSession(config: ConnectConfigRecord): String {
+  private suspend fun connectSession(
+    config: ConnectConfigRecord,
+    connect: suspend (SessionHandler) -> SshSession,
+  ): String {
     val sessionId = sessionIds.next()
     val handler = JsSessionHandler(
       sessionId = sessionId,
@@ -108,8 +215,7 @@ class ReactNativeSshModule : Module() {
       },
     )
 
-    val session = translateSuspendFailures { SshSession.connect(config.toNative(), handler) }
-    sessions[sessionId] = session
+    sessions[sessionId] = translateSuspendFailures { connect(handler) }
 
     return sessionId
   }
@@ -156,6 +262,52 @@ class ReactNativeSshModule : Module() {
     shells.filterValues { it.sessionId == sessionId }.keys.forEach(::closeShell)
   }
 
+  private suspend fun transfer(
+    transferId: String,
+    run: suspend (TransferProgress, CancelToken) -> ULong,
+  ): Double {
+    val cancel = CancelToken()
+    cancels[transferId] = cancel
+
+    return try {
+      translateSuspendFailures { run(progressSink(transferId), cancel) }.toDouble()
+    } finally {
+      cancels.remove(transferId)
+    }
+  }
+
+  private suspend fun registerForward(start: suspend () -> ForwardHandle): ForwardStartRecord {
+    val forwardId = forwardIds.next()
+    val handle = translateSuspendFailures(start)
+
+    forwards[forwardId] = handle
+
+    return ForwardStartRecord(forwardId, handle.actualPort().toInt())
+  }
+
+  private fun progressSink(transferId: String) = object : TransferProgress {
+    override fun onProgress(transferred: ULong, total: ULong?) {
+      runCatching {
+        sendEvent(
+          EVENT_TRANSFER_PROGRESS,
+          mapOf(
+            "transferId" to transferId,
+            "transferred" to transferred.toDouble(),
+            "total" to total?.toDouble(),
+          ),
+        )
+      }
+    }
+  }
+
+  private fun forwardSink(sessionId: String) = object : ForwardSink {
+    override fun onError(message: String) {
+      runCatching {
+        sendEvent(EVENT_FORWARD_ERROR, mapOf("sessionId" to sessionId, "message" to message))
+      }
+    }
+  }
+
   private suspend fun requestHostKey(request: HostKeyRequestRecord): Boolean {
     val decision = CompletableDeferred<Boolean>()
     hostKeyRequests[request.requestId] = decision
@@ -183,6 +335,10 @@ class ReactNativeSshModule : Module() {
   private fun session(sessionId: String): SshSession =
     sessions[sessionId]
       ?: throw SshException.ChannelClosed("session $sessionId is not connected").toCodedException()
+
+  private fun sftp(sftpId: String): SftpClient =
+    sftps[sftpId]
+      ?: throw SshException.ChannelClosed("sftp $sftpId is not open").toCodedException()
 }
 
 /** Runs a core call, translating its failure into a coded JavaScript error. */
@@ -196,6 +352,33 @@ private suspend fun <T> translateSuspendFailures(call: suspend () -> T): T = try
   call()
 } catch (error: SshException) {
   throw error.toCodedException()
+}
+
+private fun Entry.toRecord() = SftpEntryRecord(
+  name = name,
+  kind = kind.eventName(),
+  size = size.toDouble(),
+  modifiedUnix = modifiedUnix?.toDouble(),
+  permissions = permissions?.toInt(),
+)
+
+private fun EntryKind.eventName(): String = when (this) {
+  EntryKind.FILE -> "file"
+  EntryKind.DIRECTORY -> "directory"
+  EntryKind.SYMLINK -> "symlink"
+  EntryKind.OTHER -> "other"
+}
+
+private fun ForwardConfigRecord.toNative(): ForwardConfig {
+  require(bindPort in 0..65535) { "bindPort must be between 0 and 65535" }
+  require(destPort in 1..65535) { "destPort must be between 1 and 65535" }
+
+  return ForwardConfig(
+    bindHost = bindHost,
+    bindPort = bindPort.toUShort(),
+    destHost = destHost,
+    destPort = destPort.toUShort(),
+  )
 }
 
 private fun AuthRecord.toNative(): AuthMethod = when (type) {

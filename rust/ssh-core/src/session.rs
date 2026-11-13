@@ -5,17 +5,20 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use russh::client::{
-    AuthResult, Config, DisconnectReason, Handle, KeyboardInteractiveAuthResponse,
+    AuthResult, ChannelOpenHandle, Config, DisconnectReason, Handle,
+    KeyboardInteractiveAuthResponse, Msg, Session,
 };
 use russh::keys::ssh_key;
 use russh::keys::{HashAlg, PrivateKeyWithHashAlg, PublicKeyBase64, PublicKeyOrCertificate};
-use russh::{Channel, ChannelMsg, Disconnect};
+use russh::{Channel, ChannelMsg, ChannelOpenFailure, Disconnect};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 use crate::error::SshError;
+use crate::forward::{self, ForwardConfig, ForwardHandle, ForwardSink, RemoteForwards};
 use crate::key::load_private_key;
 use crate::runtime;
+use crate::sftp::SftpClient;
 use crate::shell::{ByteSink, ShellChannel};
 
 /// The keepalives a session may miss before russh gives up on the server.
@@ -94,10 +97,36 @@ pub trait SessionHandler: Send + Sync {
     fn on_disconnect(&self, reason: String);
 }
 
+/// The session's channel handle, shared with the forwards it owns.
+pub(crate) type SessionHandle = Arc<Mutex<Handle<ClientHandler>>>;
+
 #[derive(uniffi::Object)]
 pub struct SshSession {
-    handle: Mutex<Handle<ClientHandler>>,
-    closed_by_app: Arc<AtomicBool>,
+    handle: SessionHandle,
+    handshake: Arc<Handshake>,
+    forwards: Arc<RemoteForwards>,
+}
+
+struct Handshake {
+    host: String,
+    port: u16,
+    timeout_ms: u32,
+    awaiting_user: AtomicBool,
+    host_key_rejected: AtomicBool,
+    closed_by_app: AtomicBool,
+}
+
+impl Handshake {
+    fn new(config: &ConnectConfig) -> Self {
+        Self {
+            host: config.host.clone(),
+            port: config.port,
+            timeout_ms: config.connect_timeout_ms.max(1),
+            awaiting_user: AtomicBool::new(false),
+            host_key_rejected: AtomicBool::new(false),
+            closed_by_app: AtomicBool::new(false),
+        }
+    }
 }
 
 #[uniffi::export]
@@ -110,6 +139,18 @@ impl SshSession {
         handler: Arc<dyn SessionHandler>,
     ) -> Result<Arc<Self>, SshError> {
         runtime::run(connect(config, handler)).await
+    }
+
+    /// Connects through `jump`, which must already be authenticated: the stream
+    /// to the target is a `direct-tcpip` channel of the jump session. Chaining
+    /// more than one bastion composes, because each jump is itself a session.
+    #[uniffi::constructor]
+    pub async fn connect_via(
+        jump: Arc<SshSession>,
+        config: ConnectConfig,
+        handler: Arc<dyn SessionHandler>,
+    ) -> Result<Arc<Self>, SshError> {
+        runtime::run(connect_via(jump, config, handler)).await
     }
 
     /// Opens a pty-backed shell whose output goes to `sink`.
@@ -167,10 +208,54 @@ impl SshSession {
         Ok(result)
     }
 
+    /// Opens the SFTP subsystem on a new channel of this session.
+    pub async fn open_sftp(&self) -> Result<Arc<SftpClient>, SshError> {
+        let handle = Arc::clone(&self.handle);
+
+        runtime::run(async move {
+            let mut channel = handle.lock().await.channel_open_session().await?;
+            channel.request_subsystem(true, "sftp").await?;
+            await_success(&mut channel).await?;
+
+            let session = russh_sftp::client::SftpSession::new(channel.into_stream())
+                .await
+                .map_err(SshError::from)?;
+
+            Ok(Arc::new(SftpClient::new(session)))
+        })
+        .await
+    }
+
+    /// Listens on the device and tunnels each connection to
+    /// `dest_host:dest_port` from the server's network.
+    pub async fn start_local_forward(
+        &self,
+        config: ForwardConfig,
+        events: Arc<dyn ForwardSink>,
+    ) -> Result<Arc<ForwardHandle>, SshError> {
+        let session = Arc::clone(&self.handle);
+
+        runtime::run(async move { forward::start_local(session, config, events).await }).await
+    }
+
+    /// Asks the server to listen and tunnels each connection it accepts to
+    /// `dest_host:dest_port` on the device.
+    pub async fn start_remote_forward(
+        &self,
+        config: ForwardConfig,
+        events: Arc<dyn ForwardSink>,
+    ) -> Result<Arc<ForwardHandle>, SshError> {
+        let session = Arc::clone(&self.handle);
+        let forwards = Arc::clone(&self.forwards);
+
+        runtime::run(async move { forward::start_remote(session, forwards, config, events).await })
+            .await
+    }
+
     /// Ends the connection. Shell channels close and report it through their
     /// sink; [`SessionHandler::on_disconnect`] is not called.
     pub async fn disconnect(&self) -> Result<(), SshError> {
-        if self.closed_by_app.swap(true, Ordering::SeqCst) {
+        if self.handshake.closed_by_app.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
 
@@ -182,6 +267,28 @@ impl SshSession {
     }
 }
 
+impl SshSession {
+    async fn open_bastion_channel(
+        &self,
+        host: &str,
+        port: u16,
+        budget: Duration,
+    ) -> Result<Channel<Msg>, SshError> {
+        let handle = self.handle.lock().await;
+        let connecting =
+            handle.channel_open_direct_tcpip(host.to_string(), u32::from(port), "127.0.0.1", 0);
+
+        tokio::time::timeout(budget, connecting)
+            .await
+            .map_err(|_| SshError::Timeout {
+                message: format!("opening a channel to {host}:{port}"),
+            })?
+            .map_err(|error| SshError::Forwarding {
+                message: format!("the bastion refused {host}:{port}: {error}"),
+            })
+    }
+}
+
 /// RFC 4254 extended data type for stderr.
 const STDERR_EXTENDED_DATA: u32 = 1;
 
@@ -189,57 +296,107 @@ async fn connect(
     config: ConnectConfig,
     handler: Arc<dyn SessionHandler>,
 ) -> Result<Arc<SshSession>, SshError> {
-    let awaiting_user = Arc::new(AtomicBool::new(false));
-    let host_key_rejected = Arc::new(AtomicBool::new(false));
-    let closed_by_app = Arc::new(AtomicBool::new(false));
-
-    let client_config = Arc::new(client_config(&config));
-    let timeout = Duration::from_millis(u64::from(config.connect_timeout_ms.max(1)));
-    let address = (config.host.clone(), config.port);
-    let client_handler = ClientHandler {
-        host: address.0.clone(),
-        port: address.1,
-        app: Arc::clone(&handler),
-        awaiting_user: Arc::clone(&awaiting_user),
-        host_key_rejected: Arc::clone(&host_key_rejected),
-        closed_by_app: Arc::clone(&closed_by_app),
-    };
-
-    let mut connecting = Box::pin(russh::client::connect(
-        client_config,
-        (address.0.clone(), address.1),
+    let handshake = Arc::new(Handshake::new(&config));
+    let forwards = Arc::new(RemoteForwards::default());
+    let client_handler = ClientHandler::new(
+        &config,
+        Arc::clone(&handler),
+        Arc::clone(&handshake),
+        Arc::clone(&forwards),
+    );
+    let connecting = russh::client::connect(
+        Arc::new(client_config(&config)),
+        (config.host.clone(), config.port),
         client_handler,
-    ));
+    );
+
+    let handle = await_handshake(connecting, &handshake).await?;
+
+    finish(config, handler, handshake, forwards, handle).await
+}
+
+async fn connect_via(
+    jump: Arc<SshSession>,
+    config: ConnectConfig,
+    handler: Arc<dyn SessionHandler>,
+) -> Result<Arc<SshSession>, SshError> {
+    let channel = jump
+        .open_bastion_channel(
+            &config.host,
+            config.port,
+            Duration::from_millis(u64::from(config.connect_timeout_ms.max(1))),
+        )
+        .await?;
+    let handshake = Arc::new(Handshake::new(&config));
+    let forwards = Arc::new(RemoteForwards::default());
+    let client_handler = ClientHandler::new(
+        &config,
+        Arc::clone(&handler),
+        Arc::clone(&handshake),
+        Arc::clone(&forwards),
+    );
+    let connecting = russh::client::connect_stream(
+        Arc::new(client_config(&config)),
+        channel.into_stream(),
+        client_handler,
+    );
+
+    let handle = await_handshake(connecting, &handshake).await?;
+
+    finish(config, handler, handshake, forwards, handle).await
+}
+
+async fn finish(
+    config: ConnectConfig,
+    handler: Arc<dyn SessionHandler>,
+    handshake: Arc<Handshake>,
+    forwards: Arc<RemoteForwards>,
+    mut handle: Handle<ClientHandler>,
+) -> Result<Arc<SshSession>, SshError> {
+    authenticate(&mut handle, &config, handler.as_ref()).await?;
+
+    Ok(Arc::new(SshSession {
+        handle: Arc::new(Mutex::new(handle)),
+        handshake,
+        forwards,
+    }))
+}
+
+/// Waits for the handshake, extending the budget while the session handler has
+/// a question open with the user.
+async fn await_handshake<C>(
+    connecting: C,
+    handshake: &Handshake,
+) -> Result<Handle<ClientHandler>, SshError>
+where
+    C: Future<Output = Result<Handle<ClientHandler>, SshError>>,
+{
+    let timeout = Duration::from_millis(u64::from(handshake.timeout_ms));
+    let mut connecting = Box::pin(connecting);
     let mut deadline = Instant::now() + timeout;
-    let connected = loop {
+
+    loop {
         tokio::select! {
-            connected = &mut connecting => break connected,
+            connected = &mut connecting => {
+                return match connected {
+                    Ok(handle) => Ok(handle),
+                    Err(_) if handshake.host_key_rejected.load(Ordering::SeqCst) => {
+                        Err(SshError::HostKeyRejected)
+                    }
+                    Err(error) => Err(error),
+                };
+            }
             () = tokio::time::sleep_until(deadline) => {
-                if awaiting_user.load(Ordering::SeqCst) {
+                if handshake.awaiting_user.load(Ordering::SeqCst) {
                     deadline = Instant::now() + timeout;
                 } else {
                     return Err(SshError::Timeout {
-                        message: format!("connecting to {}:{}", address.0, address.1),
+                        message: format!("connecting to {}:{}", handshake.host, handshake.port),
                     });
                 }
             }
         }
-    };
-
-    let mut handle = match connected {
-        Ok(handle) => handle,
-        Err(_) if host_key_rejected.load(Ordering::SeqCst) => {
-            return Err(SshError::HostKeyRejected);
-        }
-        Err(error) => return Err(error),
-    };
-
-    authenticate(&mut handle, &config, handler.as_ref()).await?;
-
-    Ok(Arc::new(SshSession {
-        handle: Mutex::new(handle),
-        closed_by_app,
-    }))
+    }
 }
 
 fn client_config(config: &ConnectConfig) -> Config {
@@ -364,13 +521,29 @@ async fn await_success(channel: &mut Channel<russh::client::Msg>) -> Result<(), 
     }
 }
 
-struct ClientHandler {
+pub(crate) struct ClientHandler {
     host: String,
     port: u16,
     app: Arc<dyn SessionHandler>,
-    awaiting_user: Arc<AtomicBool>,
-    host_key_rejected: Arc<AtomicBool>,
-    closed_by_app: Arc<AtomicBool>,
+    handshake: Arc<Handshake>,
+    forwards: Arc<RemoteForwards>,
+}
+
+impl ClientHandler {
+    fn new(
+        config: &ConnectConfig,
+        app: Arc<dyn SessionHandler>,
+        handshake: Arc<Handshake>,
+        forwards: Arc<RemoteForwards>,
+    ) -> Self {
+        Self {
+            host: config.host.clone(),
+            port: config.port,
+            app,
+            handshake,
+            forwards,
+        }
+    }
 }
 
 impl russh::client::Handler for ClientHandler {
@@ -396,7 +569,7 @@ impl russh::client::Handler for ClientHandler {
             }
         };
 
-        self.awaiting_user.store(true, Ordering::SeqCst);
+        self.handshake.awaiting_user.store(true, Ordering::SeqCst);
         let accepted = self
             .app
             .verify_host_key(
@@ -407,20 +580,46 @@ impl russh::client::Handler for ClientHandler {
                 fingerprint,
             )
             .await;
-        self.awaiting_user.store(false, Ordering::SeqCst);
+        self.handshake.awaiting_user.store(false, Ordering::SeqCst);
 
         if !accepted {
-            self.host_key_rejected.store(true, Ordering::SeqCst);
+            self.handshake
+                .host_key_rejected
+                .store(true, Ordering::SeqCst);
         }
 
         Ok(accepted)
+    }
+
+    /// Routes a connection the server accepted on a remote forward to the
+    /// destination the app asked for, or declines it when no forward owns the
+    /// port.
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        _connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        let Some(destination) = self.forwards.destination(connected_port) else {
+            reply.reject(ChannelOpenFailure::ConnectFailed).await;
+            return Ok(());
+        };
+
+        reply.accept().await;
+        runtime::spawn(forward::pump_forwarded(channel, destination));
+
+        Ok(())
     }
 
     async fn disconnected(
         &mut self,
         reason: DisconnectReason<Self::Error>,
     ) -> Result<(), Self::Error> {
-        if !self.closed_by_app.load(Ordering::SeqCst) {
+        if !self.handshake.closed_by_app.load(Ordering::SeqCst) {
             let text = match reason {
                 DisconnectReason::ReceivedDisconnect(info) => {
                     format!("{:?}: {}", info.reason_code, info.message)

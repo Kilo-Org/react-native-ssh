@@ -31,6 +31,16 @@ extension SshError {
       return "Protocol"
     case .KeyGeneration:
       return "KeyGeneration"
+    case .NotFound:
+      return "NotFound"
+    case .PermissionDenied:
+      return "PermissionDenied"
+    case .Cancelled:
+      return "Cancelled"
+    case .Forwarding:
+      return "Forwarding"
+    case .LocalIo:
+      return "LocalIo"
     }
   }
 
@@ -43,14 +53,20 @@ extension SshError {
       .KeyParse(let message),
       .ChannelClosed(let message),
       .Protocol(let message),
-      .KeyGeneration(let message):
+      .KeyGeneration(let message),
+      .Forwarding(let message),
+      .LocalIo(let message):
       return message
+    case .NotFound(let path), .PermissionDenied(let path):
+      return path
     case .HostKeyRejected:
       return "The host key was rejected"
     case .AuthCancelled:
       return "Authentication was cancelled"
     case .WrongPassphrase:
       return "Wrong or missing passphrase"
+    case .Cancelled:
+      return "The transfer was cancelled"
     }
   }
 

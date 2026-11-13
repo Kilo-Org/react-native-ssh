@@ -5,14 +5,19 @@
 uniffi::setup_scaffolding!();
 
 mod error;
+mod forward;
 mod key;
 mod runtime;
 mod session;
+mod sftp;
 mod shell;
+mod transfer;
 
 pub use error::SshError;
+pub use forward::{ForwardConfig, ForwardHandle, ForwardSink};
 pub use key::{GeneratedKey, ParsedKey, generate_ed25519_key, parse_private_key};
 pub use session::{AuthMethod, ConnectConfig, ExecResult, Prompt, SessionHandler, SshSession};
+pub use sftp::{CancelToken, Entry, EntryKind, SftpClient, TransferProgress};
 pub use shell::{ByteSink, ShellChannel};
 
 #[uniffi::export]
