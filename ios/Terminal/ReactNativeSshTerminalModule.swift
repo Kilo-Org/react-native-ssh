@@ -45,21 +45,21 @@ public class ReactNativeSshTerminalModule: Module {
         view.applyCursorStyle(cursorStyle)
       }
 
-      Function("sendInput") { (view: ReactNativeSshTerminalView, base64: String) in
+      AsyncFunction("sendInput") { (view: ReactNativeSshTerminalView, base64: String) in
         view.sendInput(base64: base64)
-      }
+      }.runOnQueue(.main)
 
-      Function("paste") { (view: ReactNativeSshTerminalView, text: String) in
+      AsyncFunction("paste") { (view: ReactNativeSshTerminalView, text: String) in
         view.paste(text: text)
-      }
+      }.runOnQueue(.main)
 
-      Function("copySelection") { (view: ReactNativeSshTerminalView) in
+      AsyncFunction("copySelection") { (view: ReactNativeSshTerminalView) in
         view.copySelection()
-      }
+      }.runOnQueue(.main)
 
-      Function("scrollToBottom") { (view: ReactNativeSshTerminalView) in
+      AsyncFunction("scrollToBottom") { (view: ReactNativeSshTerminalView) in
         view.scrollToBottom()
-      }
+      }.runOnQueue(.main)
     }
   }
 }
