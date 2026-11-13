@@ -31,6 +31,17 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
     return unsupported();
   }
 
+  encryptExport(
+    _plaintextJson: string,
+    _passphrase: string
+  ): Promise<string> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  decryptExport(_armored: string, _passphrase: string): Promise<string> {
+    return Promise.reject(new Error(unavailable));
+  }
+
   connect(_config: NativeConnectConfig): Promise<string> {
     return Promise.reject(new Error(unavailable));
   }

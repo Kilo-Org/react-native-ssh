@@ -11,6 +11,7 @@ name = "ssh_core"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
+age = { version = "0.11.1", default-features = false, features = ["armor"] }
 async-trait = "0.1"
 getrandom = { version = "0.4", features = ["sys_rng"] }
 # ring is the only russh crypto backend that cross-compiles to the Android NDK and
@@ -20,6 +21,7 @@ russh = { version = "0.65.1", default-features = false, features = ["ring", "rsa
 russh-sftp = "3.0.1"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "rt-multi-thread", "net", "sync", "time"] }
 uniffi = { workspace = true }
+zeroize = "1.9"
 
 [dev-dependencies]
 sha2 = "0.10"

@@ -22,6 +22,7 @@ private fun SshException.code(): String = when (this) {
   is SshException.UnsupportedAlgorithm -> "UnsupportedAlgorithm"
   is SshException.KeyParse -> "KeyParse"
   is SshException.WrongPassphrase -> "WrongPassphrase"
+  is SshException.InvalidExport -> "InvalidExport"
   is SshException.ChannelClosed -> "ChannelClosed"
   is SshException.Protocol -> "Protocol"
   is SshException.KeyGeneration -> "KeyGeneration"
