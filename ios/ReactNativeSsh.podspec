@@ -40,5 +40,5 @@ Pod::Spec.new do |s|
   # accessor, so no copy phase and no link flag are generated and the app fails
   # to link the uniffi symbols.
   s.vendored_frameworks = 'Frameworks/SshCore.xcframework'
-  s.source_files = '*.{h,m,mm,swift}', 'Generated/**/*.{h,swift}'
+  s.source_files = '*.{h,m,mm,swift}', 'Terminal/**/*.swift', 'Generated/**/*.{h,swift}'
 end

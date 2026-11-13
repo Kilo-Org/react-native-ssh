@@ -302,11 +302,11 @@ public final class ReactNativeSshModule: Module {
 
     let result = try await translateAsync { try await session.exec(command: command) }
 
-    return ExecOutputRecord(
-      stdout: String(decoding: result.stdout, as: UTF8.self),
-      stderr: String(decoding: result.stderr, as: UTF8.self),
-      exitStatus: result.exitStatus.map { Int($0) }
-    )
+    var output = ExecOutputRecord()
+    output.stdout = String(decoding: result.stdout, as: UTF8.self)
+    output.stderr = String(decoding: result.stderr, as: UTF8.self)
+    output.exitStatus = result.exitStatus.map { Int($0) }
+    return output
   }
 
   private func disconnectSession(_ sessionId: String) async throws {
