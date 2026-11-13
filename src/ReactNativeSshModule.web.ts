@@ -4,8 +4,11 @@ import type {
   GeneratedKey,
   NativeConnectConfig,
   NativeExecOutput,
+  NativeForwardConfig,
+  NativeForwardStart,
   NativeShellOptions,
   ParsedKey,
+  SftpEntry,
   SshEvents,
 } from './ReactNativeSsh.types';
 
@@ -29,6 +32,13 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
   }
 
   connect(_config: NativeConnectConfig): Promise<string> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  connectVia(
+    _jumpSessionId: string,
+    _config: NativeConnectConfig
+  ): Promise<string> {
     return Promise.reject(new Error(unavailable));
   }
 
@@ -77,6 +87,82 @@ class ReactNativeSshModule extends NativeModule<SshEvents> {
 
   isRetryableCode(_code: string): boolean {
     return unsupported();
+  }
+
+  openSftp(_sessionId: string): Promise<string> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  closeSftp(_sftpId: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpList(_sftpId: string, _path: string): Promise<SftpEntry[]> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpStat(_sftpId: string, _path: string): Promise<SftpEntry> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpRealpath(_sftpId: string, _path: string): Promise<string> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpMkdir(_sftpId: string, _path: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpRename(_sftpId: string, _from: string, _to: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpRemoveFile(_sftpId: string, _path: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpRemoveDir(_sftpId: string, _path: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpDownload(
+    _sftpId: string,
+    _remotePath: string,
+    _localPath: string,
+    _transferId: string
+  ): Promise<number> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  sftpUpload(
+    _sftpId: string,
+    _localPath: string,
+    _remotePath: string,
+    _transferId: string
+  ): Promise<number> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  cancelTransfer(_transferId: string): void {
+    unsupported();
+  }
+
+  startLocalForward(
+    _sessionId: string,
+    _config: NativeForwardConfig
+  ): Promise<NativeForwardStart> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  startRemoteForward(
+    _sessionId: string,
+    _config: NativeForwardConfig
+  ): Promise<NativeForwardStart> {
+    return Promise.reject(new Error(unavailable));
+  }
+
+  stopForward(_forwardId: string): Promise<void> {
+    return Promise.reject(new Error(unavailable));
   }
 }
 

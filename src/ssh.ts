@@ -1,18 +1,18 @@
 import type { EventSubscription } from 'expo';
 
-import {
-  SSH_ERROR_CODES,
-  type BackgroundSessionTexts,
-  type ConnectOptions,
-  type ExecOutput,
-  type IdleNotificationTexts,
-  type NativeAuth,
-  type ParsedKey,
-  type ShellOptions,
-  type SshErrorCode,
-  type SshEvents,
+import type {
+  BackgroundSessionTexts,
+  ConnectOptions,
+  ExecOutput,
+  IdleNotificationTexts,
+  NativeAuth,
+  NativeConnectConfig,
+  ParsedKey,
+  ShellOptions,
+  SshEvents,
 } from './ReactNativeSsh.types';
 import ReactNativeSsh from './ReactNativeSshModule';
+import { guard, isRetryableError, SshError, translate } from './errors';
 
 const DEFAULT_PORT = 22;
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
@@ -21,39 +21,25 @@ const DEFAULT_TERM = 'xterm-256color';
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-/** A failed SSH call, categorised by [`SshErrorCode`]. */
-export class SshError extends Error {
-  readonly code: SshErrorCode;
-
-  constructor(code: SshErrorCode, message: string) {
-    super(message);
-    this.name = 'SshError';
-    this.code = code;
-  }
-}
-
-/**
- * Whether repeating the call that failed can succeed without changing its
- * inputs. Only transient transport failures are retryable.
- */
-export function isRetryableError(error: SshError): boolean {
-  return ReactNativeSsh.isRetryableCode(error.code);
-}
-
 /**
  * Connects and authenticates. Host-key and keyboard-interactive decisions
  * arrive through [`addSshListener`] while this promise is pending.
  */
 export function connect(options: ConnectOptions): Promise<string> {
+  return guard(() => ReactNativeSsh.connect(nativeConnectConfig(options)));
+}
+
+/**
+ * Connects through `jumpSessionId`, an authenticated session whose network
+ * reaches the target. Chaining bastions works the same way: each jump session
+ * may itself have been opened through another one.
+ */
+export function connectVia(
+  jumpSessionId: string,
+  options: ConnectOptions
+): Promise<string> {
   return guard(() =>
-    ReactNativeSsh.connect({
-      host: options.host,
-      port: options.port ?? DEFAULT_PORT,
-      username: options.username,
-      auth: nativeAuth(options.auth),
-      connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
-      keepaliveIntervalS: options.keepaliveIntervalS ?? DEFAULT_KEEPALIVE_INTERVAL_S,
-    })
+    ReactNativeSsh.connectVia(jumpSessionId, nativeConnectConfig(options))
   );
 }
 
@@ -159,6 +145,8 @@ export function addSshListener<K extends keyof SshEvents>(
   return ReactNativeSsh.addListener(event, listener);
 }
 
+export { isRetryableError, SshError };
+
 export type {
   BackgroundSessionTexts,
   CommandFinishedNotice,
@@ -176,6 +164,18 @@ export type {
   SshEvents,
 } from './ReactNativeSsh.types';
 
+function nativeConnectConfig(options: ConnectOptions): NativeConnectConfig {
+  return {
+    host: options.host,
+    port: options.port ?? DEFAULT_PORT,
+    username: options.username,
+    auth: nativeAuth(options.auth),
+    connectTimeoutMs: options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
+    keepaliveIntervalS:
+      options.keepaliveIntervalS ?? DEFAULT_KEEPALIVE_INTERVAL_S,
+  };
+}
+
 function nativeAuth(auth: ConnectOptions['auth']): NativeAuth {
   switch (auth.type) {
     case 'password':
@@ -191,30 +191,3 @@ function nativeAuth(auth: ConnectOptions['auth']): NativeAuth {
   }
 }
 
-async function guard<T>(call: () => Promise<T>): Promise<T> {
-  try {
-    return await call();
-  } catch (cause) {
-    throw translate(cause);
-  }
-}
-
-function translate(cause: unknown): SshError {
-  if (cause instanceof SshError) {
-    return cause;
-  }
-
-  const message = cause instanceof Error ? cause.message : String(cause);
-  return new SshError(codeOf(cause), message);
-}
-
-function codeOf(cause: unknown): SshErrorCode {
-  const candidate = hasCode(cause) ? cause.code : undefined;
-  const match = SSH_ERROR_CODES.find((code) => code === candidate);
-
-  return match ?? 'Protocol';
-}
-
-function hasCode(cause: unknown): cause is { code: unknown } {
-  return typeof cause === 'object' && cause !== null && 'code' in cause;
-}

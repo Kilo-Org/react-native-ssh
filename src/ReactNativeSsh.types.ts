@@ -26,6 +26,11 @@ export const SSH_ERROR_CODES = [
   'ChannelClosed',
   'Protocol',
   'KeyGeneration',
+  'NotFound',
+  'PermissionDenied',
+  'Cancelled',
+  'Forwarding',
+  'LocalIo',
 ] as const;
 
 export type SshErrorCode = (typeof SSH_ERROR_CODES)[number];
@@ -131,6 +136,39 @@ export type CommandFinishedNotice = {
   shellId: string;
 };
 
+/** What a directory entry points at, from the server's `lstat`. */
+export type EntryKind = 'file' | 'directory' | 'symlink' | 'other';
+
+export type SftpEntry = {
+  name: string;
+  kind: EntryKind;
+  size: number;
+  /** Seconds since the Unix epoch; `null` when the server reported no time. */
+  modifiedUnix: number | null;
+  /** POSIX mode bits; `null` when the server reported none. */
+  permissions: number | null;
+};
+
+export type TransferProgress = {
+  transferred: number;
+  /** `null` when the source did not report its size. */
+  total: number | null;
+};
+
+export type TransferProgressEvent = TransferProgress & { transferId: string };
+
+export type TransferOptions = {
+  /** Called at most ten times a second while bytes move. */
+  onProgress?: (progress: TransferProgress) => void;
+  /** Cancels the transfer; the promise rejects with code `Cancelled`. */
+  signal?: AbortSignal;
+};
+
+export type ForwardErrorNotice = {
+  sessionId: string;
+  message: string;
+};
+
 export type SshEvents = {
   onHostKey: (request: HostKeyRequest) => void;
   onKeyboardInteractive: (request: KeyboardInteractiveRequest) => void;
@@ -139,6 +177,8 @@ export type SshEvents = {
   onCommandFinished: (notice: CommandFinishedNotice) => void;
   /** The `Disconnect all` action of the session notification was tapped. */
   onDisconnectAll: () => void;
+  onTransferProgress: (event: TransferProgressEvent) => void;
+  onForwardError: (notice: ForwardErrorNotice) => void;
 };
 
 /** The record shapes the native module exchanges; the public API maps to them. */
@@ -169,3 +209,16 @@ export type NativeShellOptions = {
 };
 
 export type NativeParsedKey = ParsedKey;
+
+export type NativeForwardConfig = {
+  bindHost: string;
+  bindPort: number;
+  destHost: string;
+  destPort: number;
+};
+
+export type NativeForwardStart = {
+  forwardId: string;
+  /** The port the forward listens on. */
+  port: number;
+};

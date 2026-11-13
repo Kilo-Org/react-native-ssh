@@ -18,6 +18,11 @@ silent)
   # Accepts TCP and never speaks SSH, so connect timeouts can be observed.
   exec socat TCP-LISTEN:2222,reuseaddr,fork EXEC:'/bin/sleep 300'
   ;;
+http)
+  # Answers every request with a fixed body, so a local forward can prove it
+  # reached the server's network.
+  exec socat TCP-LISTEN:8080,reuseaddr,fork EXEC:/usr/local/bin/http-response
+  ;;
 *)
   echo "unknown role: $1" >&2
   exit 1

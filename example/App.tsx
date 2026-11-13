@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import SshDemo from './SshDemo';
+import SshFilesDemo from './SshFilesDemo';
 import SshTerminalDemo from './SshTerminalDemo';
 import TerminalDemo from './TerminalDemo';
 
 const DEMOS = [
   { key: 'ssh-terminal', label: 'SSH terminal', Screen: SshTerminalDemo },
+  { key: 'ssh-files', label: 'SSH files', Screen: SshFilesDemo },
   { key: 'terminal', label: 'PTY server terminal', Screen: TerminalDemo },
   { key: 'ssh', label: 'SSH commands', Screen: SshDemo },
 ] as const;

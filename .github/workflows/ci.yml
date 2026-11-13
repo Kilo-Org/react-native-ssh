@@ -44,12 +44,20 @@ jobs:
       - name: Build the SSH test server
         run: docker build -t ssh-core-test -f ssh-core/tests/docker/Dockerfile ssh-core/tests
 
+      # One network for the whole fixture: the bastion reaches the target only
+      # over it, and `ssh-core-http` has no published port at all. Port 9000 is
+      # published so a remote forward bound inside the container is reachable.
       - name: Start the SSH test servers
         run: |
-          docker run -d --name ssh-core-password -p 2222:2222 ssh-core-test password
-          docker run -d --name ssh-core-twofactor -p 2223:2222 ssh-core-test two-factor
-          docker run -d --name ssh-core-silent -p 2224:2222 ssh-core-test silent
-          for port in 2222 2223 2224; do
+          set -euo pipefail
+          docker network create ssh-core-net
+          docker run -d --name ssh-core-password --network ssh-core-net -p 2222:2222 -p 9000:9000 ssh-core-test password
+          docker run -d --name ssh-core-twofactor --network ssh-core-net -p 2223:2222 ssh-core-test two-factor
+          docker run -d --name ssh-core-silent --network ssh-core-net -p 2224:2222 ssh-core-test silent
+          docker run -d --name ssh-core-http --network ssh-core-net ssh-core-test http
+          docker run -d --name ssh-core-bastion --network ssh-core-net -p 2226:2222 ssh-core-test password
+          docker run -d --name ssh-core-target --network ssh-core-net ssh-core-test password
+          for port in 2222 2223 2224 2226; do
             for attempt in $(seq 1 30); do
               if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then break; fi
               sleep 1
@@ -59,19 +67,29 @@ jobs:
       - name: Run the integration suite
         env:
           SSH_TEST_HOST: 127.0.0.1
-        run: cargo test --test integration
+          SSH_TEST_REMOTE_FORWARD_PORT: '9000'
+          SSH_TEST_HTTP_HOST: ssh-core-http
+          SSH_TEST_HTTP_PORT: '8080'
+          SSH_TEST_BASTION_PORT: '2226'
+          SSH_TEST_TARGET_HOST: ssh-core-target
+          SSH_TEST_TARGET_PORT: '2222'
+          SSH_TEST_THIRD_HOP_HOST: ssh-core-password
+          SSH_TEST_THIRD_HOP_PORT: '2222'
+        run: cargo test --test integration --test transfers
 
       - name: Show the server logs on failure
         if: failure()
         run: |
-          for name in ssh-core-password ssh-core-twofactor ssh-core-silent; do
+          for name in ssh-core-password ssh-core-twofactor ssh-core-silent ssh-core-http ssh-core-bastion ssh-core-target; do
             echo "== $name"
             docker logs "$name" || true
           done
 
       - name: Stop the SSH test servers
         if: always()
-        run: docker rm -f ssh-core-password ssh-core-twofactor ssh-core-silent
+        run: |
+          docker rm -f ssh-core-password ssh-core-twofactor ssh-core-silent ssh-core-http ssh-core-bastion ssh-core-target
+          docker network rm ssh-core-net
 
 
   android:
@@ -203,4 +221,12 @@ jobs:
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build \
             build
+
+      - name: Upload the simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-ios-simulator-app
+          path: example/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeSshExample.app
+          retention-days: 7

@@ -37,6 +37,8 @@ RUN printf '%s\n' \
 
 COPY docker/sshd_config.password /etc/ssh/sshd_config.password
 COPY docker/sshd_config.twofactor /etc/ssh/sshd_config.twofactor
+COPY docker/http_response.sh /usr/local/bin/http-response
+RUN chmod +x /usr/local/bin/http-response
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint
 
 EXPOSE 2222
