@@ -125,6 +125,10 @@ export default function SshTerminalDemo() {
             setFontSize(next);
           }}
           onSelectionChange={(selecting) => console.log('[ssh-terminal] selection', selecting)}
+          onClosed={(notice) => {
+            console.log('[ssh-terminal] closed', notice.exitStatus, notice.error);
+            setStatus('closed');
+          }}
           onLinkPress={(url) => console.log('[ssh-terminal] link', url)}
           onBell={() => console.log('[ssh-terminal] bell')}
         />

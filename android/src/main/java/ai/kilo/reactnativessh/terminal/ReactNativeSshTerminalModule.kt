@@ -36,7 +36,15 @@ class ReactNativeSshTerminalModule : Module() {
     }
 
     View(ReactNativeSshTerminalView::class) {
-      Events("onResize", "onLinkPress", "onBell", "onTitleChange", "onSelectionChange", "onFontSizeChange")
+      Events(
+        "onResize",
+        "onLinkPress",
+        "onBell",
+        "onTitleChange",
+        "onSelectionChange",
+        "onFontSizeChange",
+        "onClosed",
+      )
 
       Prop("sourceId") { view: ReactNativeSshTerminalView, sourceId: String? ->
         view.bindSource(sourceId)

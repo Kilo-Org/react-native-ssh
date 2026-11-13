@@ -7,7 +7,6 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.util.Base64
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -35,6 +34,7 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
   private var appliedColumns = 0
   private var appliedRows = 0
   private var scaleAccumulator = 1f
+  private var transportClosed = false
 
   internal var cursorStyleValue: Int = TerminalEmulator.DEFAULT_TERMINAL_CURSOR_STYLE
 
@@ -44,12 +44,20 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
     }
 
     override fun onClosed(exitStatus: Int?, error: String?) {
-      mainHandler.post { session.notifyTransportClosed(exitStatus ?: 0, error) }
+      mainHandler.post {
+        transportClosed = true
+        session.notifyTransportClosed(exitStatus ?: 0, error)
+        TerminalViewEvents.emit(this@ReactNativeSshTerminalView, "onClosed", Bundle().apply {
+          putInt("exitStatus", exitStatus ?: 0)
+          putString("error", error)
+        })
+      }
     }
   }
 
   private val transport = object : TerminalTransport {
     override fun write(data: ByteArray, offset: Int, count: Int) {
+      if (transportClosed) return
       val bytes = if (offset == 0 && count == data.size) data else data.copyOfRange(offset, offset + count)
       source?.write(bytes)
     }
@@ -63,9 +71,11 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
     }
   }
 
-  private val session: TerminalSession by lazy {
-    TerminalSession(transport, TerminalSessionClientBridge(this), TRANSCRIPT_ROWS)
-  }
+  private var session: TerminalSession = TerminalSession(
+    transport,
+    TerminalSessionClientBridge(this),
+    TRANSCRIPT_ROWS,
+  )
 
   init {
     terminal.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -128,18 +138,23 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   fun sendInput(base64: String) {
     onMain {
+      if (transportClosed) return@onMain
       val bytes = Base64.decode(base64, Base64.DEFAULT)
       session.write(bytes, 0, bytes.size)
     }
   }
 
   fun sendText(text: String) {
-    onMain { session.write(text) }
+    onMain {
+      if (transportClosed) return@onMain
+      session.write(text)
+    }
   }
 
   fun copySelection() {
     onMain {
-      val text = terminal.getSelectedText() ?: return@onMain
+      val text = terminal.getSelectedText()?.trim().orEmpty()
+      if (text.isEmpty()) return@onMain
       copyToClipboard(text)
       terminal.stopTextSelectionMode()
     }
@@ -225,7 +240,8 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
 
   internal fun pasteFromClipboard() {
     val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
-    val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() ?: return
+    val text = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+    if (text.isEmpty() || transportClosed) return
     session.write(text)
   }
 
@@ -236,6 +252,14 @@ class ReactNativeSshTerminalView(context: Context, appContext: AppContext) : Exp
     source?.setSink(null)
     source = next
     next?.setSink(sink)
+
+    if (next != null && transportClosed) {
+      transportClosed = false
+      session = TerminalSession(transport, TerminalSessionClientBridge(this), TRANSCRIPT_ROWS)
+      terminal.attachSession(session)
+      appliedColumns = 0
+      appliedRows = 0
+    }
 
     val emulator = session.emulator
     if (next != null && emulator != null) next.resize(emulator.mColumns, emulator.mRows)

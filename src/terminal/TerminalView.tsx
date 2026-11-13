@@ -25,6 +25,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
     onTitleChange,
     onSelectionChange,
     onFontSizeChange,
+    onClosed,
     ...viewProps
   },
   ref,
@@ -46,6 +47,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(fu
       onTitleChange={onTitleChange && ((event) => onTitleChange(event.nativeEvent.title))}
       onSelectionChange={onSelectionChange && ((event) => onSelectionChange(event.nativeEvent.selecting))}
       onFontSizeChange={onFontSizeChange && ((event) => onFontSizeChange(event.nativeEvent.fontSize))}
+      onClosed={onClosed && ((event) => onClosed(event.nativeEvent))}
     />
   );
 });

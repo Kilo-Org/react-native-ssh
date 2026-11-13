@@ -23,6 +23,11 @@ export type NativeTerminalTheme = {
   ansi: number[];
 };
 
+export type TerminalCloseNotice = {
+  exitStatus: number;
+  error: string | null;
+};
+
 export type TerminalViewHandle = {
   sendInput(base64: string): Promise<void>;
   copySelection(): Promise<void>;
@@ -43,11 +48,19 @@ export type TerminalViewProps = Omit<ViewProps, 'children'> & {
   onTitleChange?: (title: string | null) => void;
   onSelectionChange?: (selecting: boolean) => void;
   onFontSizeChange?: (fontSize: number) => void;
+  onClosed?: (notice: TerminalCloseNotice) => void;
 };
 
 export type NativeTerminalViewProps = Omit<
   TerminalViewProps,
-  'onResize' | 'onLinkPress' | 'onBell' | 'onTitleChange' | 'onSelectionChange' | 'onFontSizeChange' | 'theme'
+  | 'onResize'
+  | 'onLinkPress'
+  | 'onBell'
+  | 'onTitleChange'
+  | 'onSelectionChange'
+  | 'onFontSizeChange'
+  | 'onClosed'
+  | 'theme'
 > & {
   theme?: NativeTerminalTheme;
   onResize?: (event: { nativeEvent: TerminalSize }) => void;
@@ -56,4 +69,5 @@ export type NativeTerminalViewProps = Omit<
   onTitleChange?: (event: { nativeEvent: { title: string | null } }) => void;
   onSelectionChange?: (event: { nativeEvent: { selecting: boolean } }) => void;
   onFontSizeChange?: (event: { nativeEvent: { fontSize: number } }) => void;
+  onClosed?: (event: { nativeEvent: TerminalCloseNotice }) => void;
 };
