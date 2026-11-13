@@ -85,9 +85,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-      - name: Install Android NDK and platform tools
-        run: sdkmanager --install "platform-tools" "ndk;27.1.12297006"
+      # The runner image already ships the Android SDK; only add the packages
+      # this project resolves (Expo SDK 58: compileSdk 37, build-tools 37,
+      # NDK 27.1.12297006). android-actions/setup-android installs a `tools`
+      # package that no longer exists in the SDK repository.
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager="$(ls -d "$sdk_root"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install \
+            "platform-tools" \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "ndk;27.1.12297006"
+          {
+            echo "ANDROID_HOME=$sdk_root"
+            echo "ANDROID_SDK_ROOT=$sdk_root"
+            echo "ANDROID_NDK_HOME=$sdk_root/ndk/27.1.12297006"
+          } >> "$GITHUB_ENV"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -100,8 +117,13 @@ jobs:
 
       - name: Build Rust core and Kotlin bindings
         run: scripts/build-android.sh
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.1.12297006
+
+      - name: Verify the native artifacts
+        run: |
+          set -euo pipefail
+          test -f android/src/main/jniLibs/arm64-v8a/libssh_core.so
+          test -f android/src/main/jniLibs/x86_64/libssh_core.so
+          test -f android/src/main/java/ai/kilo/reactnativessh/uniffi/ssh_core.kt
 
       - uses: actions/setup-node@v4
         with:
@@ -112,7 +134,7 @@ jobs:
 
       - name: Install example dependencies
         working-directory: example
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Prebuild the example app
         working-directory: example
@@ -147,7 +169,7 @@ jobs:
 
       - name: Install example dependencies
         working-directory: example
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Prebuild the example app
         working-directory: example
@@ -156,6 +178,18 @@ jobs:
       - name: Install pods
         working-directory: example/ios
         run: pod install
+
+      # Guards the vendored xcframework: an exclude_files pattern that matches
+      # Frameworks/ makes CocoaPods drop the bundle, after which the app link
+      # fails on the uniffi symbols instead of here.
+      - name: Verify the xcframework is vendored
+        working-directory: example/ios
+        run: |
+          set -euo pipefail
+          support="Pods/Target Support Files/ReactNativeSsh"
+          test -f "$support/ReactNativeSsh-xcframeworks.sh"
+          grep -q 'ios-arm64_x86_64-simulator' "$support/ReactNativeSsh-xcframeworks.sh"
+          grep -q -- '-l"ssh_core"' "Pods/Target Support Files/"Pods-*/Pods-*.debug.xcconfig
 
       - name: Build the example app for the simulator
         working-directory: example/ios

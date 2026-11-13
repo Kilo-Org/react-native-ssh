@@ -39,7 +39,7 @@ done
 
 echo "==> Fusing the simulator slices"
 mkdir -p "$LIPO_DIR" "$GENERATED_DIR" "$FRAMEWORKS_DIR"
-SIM_LIPO="$LIPO_DIR/libssh_core_simulator.a"
+SIM_LIPO="$LIPO_DIR/libssh_core.a"
 lipo -create \
   "$RUST_DIR/target/aarch64-apple-ios-sim/release/libssh_core.a" \
   "$RUST_DIR/target/x86_64-apple-ios/release/libssh_core.a" \
@@ -65,6 +65,9 @@ xcodebuild -create-xcframework \
   -library "$SIM_LIPO" -headers "$GENERATED_DIR" \
   -output "$FRAMEWORKS_DIR/SshCore.xcframework"
 
+echo "==> Slices"
+/usr/libexec/PlistBuddy -c 'Print :AvailableLibraries' "$FRAMEWORKS_DIR/SshCore.xcframework/Info.plist"
+
 echo "==> Artifacts"
-find "$FRAMEWORKS_DIR" -maxdepth 2 -name '*.a' -exec ls -l {} +
+find "$FRAMEWORKS_DIR" -name '*.a' -exec ls -l {} +
 find "$GENERATED_DIR" -maxdepth 1 -type f -exec ls -l {} +

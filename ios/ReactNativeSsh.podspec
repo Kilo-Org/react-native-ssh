@@ -32,7 +32,13 @@ Pod::Spec.new do |s|
     'SWIFT_INCLUDE_PATHS' => '"$(PODS_TARGET_SRCROOT)/Generated"',
   }
 
+  # The Rust core ships as a static-library xcframework. CocoaPods copies the
+  # slice matching the build platform and architectures and links its archive.
+  #
+  # No file pattern may reach into Frameworks/: an exclude_files entry that
+  # matches the bundle (e.g. "Frameworks/**/*") removes it from the file
+  # accessor, so no copy phase and no link flag are generated and the app fails
+  # to link the uniffi symbols.
   s.vendored_frameworks = 'Frameworks/SshCore.xcframework'
-  s.source_files = "**/*.{h,m,mm,swift}"
-  s.exclude_files = "Frameworks/**/*"
+  s.source_files = '*.{h,m,mm,swift}', 'Generated/**/*.{h,swift}'
 end
