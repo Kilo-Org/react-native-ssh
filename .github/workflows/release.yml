@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: next
+      publish:
+        description: Publish to npm (off packs the tarball as an artifact only)
+        required: true
+        type: boolean
+        default: true
   push:
     tags:
       - 'v*'
@@ -126,7 +131,7 @@ jobs:
       - name: Install Node with the npm registry
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Download the iOS artifacts
@@ -200,10 +205,16 @@ jobs:
             exit 1
           fi
 
-      - name: List the tarball contents
-        run: npm pack --dry-run 2>&1 | tee pack-dry-run.log
+      - name: Pack the tarball
+        run: npm pack 2>&1 | tee pack.log
 
-      - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --provenance --access public --tag "${{ steps.dist.outputs.tag }}"
+      - name: Upload the tarball
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: npm-tarball
+          path: kilocode-react-native-ssh-*.tgz
+          retention-days: 7
+
+      - name: Publish through npm trusted publishing
+        if: github.event_name == 'push' || inputs.publish
+        run: npm publish ./kilocode-react-native-ssh-*.tgz --access public --tag "${{ steps.dist.outputs.tag }}"

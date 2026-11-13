@@ -54,13 +54,17 @@ runs on a `v*` tag or by hand with a `dist-tag` input (default `next`):
 1. macOS runs `scripts/build-ios.sh` and uploads `ios/`.
 2. Linux runs `scripts/build-android.sh` and uploads the jniLibs and the Kotlin
    bindings.
-3. One job downloads both into the checkout, runs `npm run build`, lists
-   `npm pack --dry-run`, asserts the xcframework slices, both `.so` files, the
-   Kotlin and Swift bindings and the compiled `build/` are present, then runs
-   `npm publish --provenance --access public --tag <tag>`.
+3. One job downloads both into the checkout, runs `npm run build`, asserts the
+   xcframework slices, both `.so` files, the Kotlin and Swift bindings and the
+   compiled `build/` are present, packs the tarball, uploads it as the
+   `npm-tarball` artifact and publishes it with
+   `npm publish --access public --tag <tag>`.
 
-The publish job needs an `NPM_TOKEN` secret with write access to `@kilocode` and
-`id-token: write` for the provenance attestation. A tag must equal the
+Publishing uses npm trusted publishing: the job's `id-token: write` permission
+lets npm exchange a GitHub OIDC token for a short-lived publish credential and
+attach a provenance attestation, so no npm token is stored. The package's
+trusted publisher on npmjs.com names this repository and `release.yml`. A manual
+run with `publish` off only packs the tarball. A tag must equal the
 `package.json` version with a `v` prefix; a tag containing a hyphen publishes
 under `next`, any other tag under `latest`.
 
