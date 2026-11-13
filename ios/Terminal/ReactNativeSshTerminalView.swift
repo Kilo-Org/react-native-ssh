@@ -126,7 +126,7 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
 
   func sendInput(base64: String) {
     guard let bytes = Data(base64Encoded: base64) else { return }
-    terminalView.send(data: bytes[...])
+    terminalView.send(data: ArraySlice(bytes))
   }
 
   func paste(text: String) {
@@ -144,7 +144,7 @@ public final class ReactNativeSshTerminalView: ExpoView, TerminalViewDelegate, T
   public func onData(_ bytes: Data) {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
-      self.terminalView.feed(byteArray: bytes[...])
+      self.terminalView.feed(byteArray: ArraySlice(bytes))
     }
   }
 
